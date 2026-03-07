@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}{{ workout.name }}{% endblock %}
+{% block nav_plans %}active{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# ── Workout structure ── #}
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <span class="badge" style="background:{{ workout.color }}">
+          {{ workout.category_label }}
+        </span>
+        <span class="fw-bold">{{ workout.name }}</span>
+        <span class="ms-auto text-muted small">
+          Score {{ workout.progression_score }}
+          &middot; {{ workout.score_label }}
+        </span>
+      </div>
+      <div class="card-body">
+        {% if workout.description %}
+        <p class="text-muted">{{ workout.description }}</p>
+        {% endif %}
+
+        <div class="d-flex gap-3 mb-3 small text-muted">
+          <span>
+            <i class="bi bi-clock me-1"></i>{{ workout.total_duration_minutes }} min total
+          </span>
+          <span>
+            <i class="bi bi-lightning me-1"></i>~{{ workout.tss_estimate }} TSS
+          </span>
+          <span>
+            <i class="bi bi-bullseye me-1"></i>
+            {% with z=workout.zone_power %}
+            {{ z.0 }}–{{ z.1 }}% FTP
+            ({{ ftp }}W → {{ z.0|floatformat:0 }}–{{ z.1|floatformat:0 }} W est.)
+            {% endwith %}
+          </span>
+        </div>
+
+        <h6 class="text-uppercase text-muted small mb-2">Structure</h6>
+        <table class="table table-sm align-middle">
+          <thead class="table-secondary">
+            <tr>
+              <th>Step</th>
+              <th>Duration</th>
+              <th>Target</th>
+              <th>Watts <small class="text-muted">(at {{ ftp }}W FTP)</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for step in steps %}
+            <tr>
+              <td>
+                <span class="badge
+                  {% if step.type == 'warmup' or step.type == 'cooldown' %}bg-secondary
+                  {% elif step.type == 'interval' %}bg-warning text-dark
+                  {% else %}bg-primary{% endif %}">
+                  {{ step.type }}
+                </span>
+                {% if step.type == 'interval' and step.repeat > 1 %}
+                <span class="text-muted small ms-1">×{{ step.repeat }}</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {{ step.duration_display }}
+                {% if step.type == 'interval' and step.rest_duration_display %}
+                <div class="text-muted" style="font-size:.75rem">
+                  rest: {{ step.rest_duration_display }}
+                </div>
+                {% endif %}
+              </td>
+              <td class="small">
+                {{ step.power_low }}–{{ step.power_high }}%
+                {% if step.type == 'interval' and step.rest_power_low %}
+                <div class="text-muted" style="font-size:.75rem">
+                  rest: {{ step.rest_power_low }}–{{ step.rest_power_high }}%
+                </div>
+                {% endif %}
+              </td>
+              <td class="small">
+                {{ step.watts_low }}–{{ step.watts_high }} W
+                {% if step.type == 'interval' and step.rest_watts_low %}
+                <div class="text-muted" style="font-size:.75rem">
+                  rest: {{ step.rest_watts_low }}–{{ step.rest_watts_high }} W
+                </div>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {% if workout.rung.note %}
+        <div class="alert alert-secondary py-2 small mb-0">
+          <i class="bi bi-info-circle me-1"></i>{{ workout.rung.note }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Actions ── #}
+  <div class="col-lg-5">
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-download me-1"></i> Download for Device</div>
+      <div class="card-body">
+        {% if not user.ftp %}
+        <div class="alert alert-warning small py-2">
+          <a href="{% url 'profile' %}">Set your FTP</a> — watts are currently at
+          the 250 W reference until you do.
+        </div>
+        {% endif %}
+        <div class="d-grid gap-2">
+          <a href="{% url 'download_workout' workout.pk 'fit' %}"
+             class="btn btn-outline-warning">
+            <i class="bi bi-download me-1"></i> Garmin FIT
+            <small class="d-block text-muted" style="font-size:.7rem">
+              Structured workout for Garmin devices
+            </small>
+          </a>
+          <a href="{% url 'download_workout' workout.pk 'zwo' %}"
+             class="btn btn-outline-secondary">
+            <i class="bi bi-download me-1"></i> Zwift ZWO
+            <small class="d-block text-muted" style="font-size:.7rem">
+              Zwift and compatible apps
+            </small>
+          </a>
+          <a href="{% url 'download_workout' workout.pk 'erg' %}"
+             class="btn btn-outline-secondary">
+            <i class="bi bi-download me-1"></i> ERG file
+            <small class="d-block text-muted" style="font-size:.7rem">
+              TrainerRoad, generic smart trainers
+            </small>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="bi bi-calendar-plus me-1"></i> Add to Calendar</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'add_workout' %}">
+          {% csrf_token %}
+          <input type="hidden" name="workout_id" value="{{ workout.pk }}">
+          <div class="mb-3">
+            <label class="form-label small">Date</label>
+            <input type="date" name="date" class="form-control form-control-sm"
+                   value="{% now 'Y-m-d' %}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Notes <span class="text-muted">(optional)</span></label>
+            <input type="text" name="notes" class="form-control form-control-sm"
+                   placeholder="e.g. morning, on trainer">
+          </div>
+          <button type="submit" class="btn btn-warning btn-sm">Add to calendar</button>
+          <a href="{% url 'calendar' %}" class="btn btn-outline-secondary btn-sm ms-1">
+            Open calendar
+          </a>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

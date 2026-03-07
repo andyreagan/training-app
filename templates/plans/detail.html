@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ plan.name }}{% endblock %}
+{% block nav_plans %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-2">
+  <div>
+    <h2 class="mb-1">{{ plan.name }}</h2>
+    <p class="text-muted mb-0">
+      {{ plan.duration_weeks }} weeks
+      &middot; {{ plan.target_hours_per_week_low }}–{{ plan.target_hours_per_week_high }} hrs/week
+      {% if plan.source_url %}
+      &middot; <a href="{{ plan.source_url }}" target="_blank" class="text-muted">Source</a>
+      {% endif %}
+    </p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if active_user_plan %}
+      <a href="{% url 'populate_from_plan' %}" class="btn btn-outline-warning">
+        <i class="bi bi-calendar-check me-1"></i> Populate calendar
+      </a>
+      <form method="post" action="{% url 'unadopt_plan' plan.slug %}" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline-danger"
+                onclick="return confirm('Remove this as your active plan?')">
+          Remove
+        </button>
+      </form>
+    {% else %}
+      <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#adoptModal">
+        <i class="bi bi-play-circle me-1"></i> Start this plan
+      </button>
+    {% endif %}
+    <a href="{% url 'plan_list' %}" class="btn btn-outline-secondary">← Plans</a>
+  </div>
+</div>
+
+<p class="text-muted">{{ plan.description }}</p>
+
+{% if active_user_plan %}
+<div class="alert alert-success py-2 small">
+  <i class="bi bi-check-circle me-1"></i>
+  Active — started {{ active_user_plan.start_date|date:"j M Y" }}.
+</div>
+{% endif %}
+
+{# ── Weekly schedule ── #}
+{% for row in weekly_rows %}
+<div class="card mb-2">
+  <div class="card-header py-1 d-flex align-items-center gap-2">
+    <strong>Week {{ row.week }}</strong>
+    <span class="badge bg-{{ row.phase.1 }}">{{ row.phase.0 }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0" style="table-layout:fixed">
+        <thead class="table-secondary">
+          <tr>
+            {% for day in row.days %}
+            <th class="text-center small" style="width:14.28%">{{ day.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {% for day in row.days %}
+            <td class="align-top p-1" style="min-height:60px">
+              {% for pb in day.blocks %}
+              <div class="mb-1">
+                <a href="{% url 'workout_detail' pb.workout.pk %}"
+                   class="text-decoration-none">
+                  <span class="badge d-block text-start mb-1"
+                        style="background:{{ pb.workout.color }}; white-space:normal; line-height:1.3">
+                    {{ pb.workout.category_label }}
+                  </span>
+                  <span class="text-muted" style="font-size:.7rem; display:block">
+                    {{ pb.workout.rung.summary }}
+                  </span>
+                </a>
+              </div>
+              {% empty %}
+              <span class="text-muted" style="font-size:.75rem">rest</span>
+              {% endfor %}
+            </td>
+            {% endfor %}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% empty %}
+<p class="text-muted">No weekly structure defined yet.</p>
+{% endfor %}
+
+{# ── Adopt modal ── #}
+<div class="modal fade" id="adoptModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'adopt_plan' plan.slug %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title">Start {{ plan.name }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Start date</label>
+          <input type="date" name="start_date" class="form-control"
+                 value="{% now 'Y-m-d' %}">
+          <div class="form-text">Week 1 Day 1 lands on this date.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning">Start plan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

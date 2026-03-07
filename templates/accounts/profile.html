@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# ── Athlete details ── #}
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-person me-1"></i> Athlete Profile</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% for field in profile_form %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}
+            <div class="form-text text-muted">{{ field.help_text }}</div>
+            {% endif %}
+            {% for error in field.errors %}
+            <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" name="save_profile" class="btn btn-primary">Save</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ── Progression scores ── #}
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-graph-up me-1"></i> Progression Scores
+        <small class="text-muted ms-2">
+          1.0 = beginner &nbsp;·&nbsp; 5.0 = intermediate &nbsp;·&nbsp; 10.0 = world-class
+        </small>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-3">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th style="width:110px">Score</th>
+                  <th>Current workout</th>
+                  <th>Next rung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for cat, info in rung_summary.items %}
+                <tr>
+                  <td class="fw-semibold">{{ info.zone_label }}</td>
+                  <td>
+                    <input type="number"
+                           name="{{ cat }}_score"
+                           value="{{ info.score|floatformat:1 }}"
+                           min="1.0" max="10.0" step="0.1"
+                           class="form-control form-control-sm">
+                  </td>
+                  <td>
+                    <span class="small">{{ info.summary }}</span>
+                    {% if info.note %}
+                    <div class="text-info" style="font-size:.75rem">{{ info.note }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted small">
+                    {% if info.next_summary %}
+                    {{ info.next_summary }}
+                    <div style="font-size:.7rem">unlocks at {{ info.next_score }}</div>
+                    {% else %}
+                    <span class="text-success">Top of ladder</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <button type="submit" name="save_scores" class="btn btn-primary">Save scores</button>
+          <small class="text-muted ms-3">
+            Scores will update automatically when Strava sync is enabled.
+          </small>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

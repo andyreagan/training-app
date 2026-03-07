@@ -1,0 +1,49 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: training-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       training
+      POSTGRES_USER:     training
+      POSTGRES_PASSWORD: training
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U training"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    container_name: training-web-dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY:    dev-secret-key-not-for-production
+      DJANGO_DEBUG:         "true"
+      DJANGO_ALLOWED_HOSTS: "localhost 127.0.0.1 0.0.0.0"
+      DB_NAME:              training
+      DB_USER:              training
+      DB_PASSWORD:          training
+      DB_HOST:              db
+      DB_PORT:              "5432"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./media:/app/media
+      # Mount source so you can edit without rebuilding
+      - .:/app
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py seed_plans &&
+             python manage.py runserver 0.0.0.0:8000"
+
+volumes:
+  postgres_data:

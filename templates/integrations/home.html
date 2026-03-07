@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Integrations{% endblock %}
+{% block nav_integrations %}active{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-arrow-repeat me-2"></i>Integrations</h2>
+
+<div class="row g-4">
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header d-flex align-items-center gap-2">
+        <svg height="20" viewBox="0 0 24 24" fill="#FC4C02"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.992 7.5h-1.875c-.414 0-.75.336-.75.75v.75h2.625v1.5h-2.625V15h-1.5V10.5H12v-1.5h1.867V7.5c0-1.243 1.007-2.25 2.25-2.25h1.875V7.5zm-9.867 0H6.75v7.5h1.5V9h1.875V7.5H8.125zm-.375-2.25a.938.938 0 1 0 0 1.876.938.938 0 0 0 0-1.876z"/></svg>
+        Strava
+        {% if strava_connected %}
+        <span class="badge bg-success ms-auto">Connected</span>
+        {% else %}
+        <span class="badge bg-secondary ms-auto">Not connected</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if strava_connected %}
+        <p class="text-muted small">Strava is connected. Syncing pulls your recent rides and populates the activity log.</p>
+        <div class="d-flex gap-2">
+          <a href="{% url 'strava_sync' %}" class="btn btn-warning btn-sm">
+            <i class="bi bi-arrow-repeat me-1"></i> Sync now
+          </a>
+          <form method="post" action="{% url 'strava_disconnect' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                    onclick="return confirm('Disconnect Strava?')">Disconnect</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-muted small">Connect Strava to automatically sync your rides and calculate TSS, NP, and IF.</p>
+        <a href="{% url 'strava_connect' %}" class="btn btn-warning btn-sm">
+          Connect Strava
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-activity me-1"></i> Recent Activities</div>
+      <div class="card-body p-0">
+        {% if recent_activities %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead><tr>
+              <th>Date</th><th>Name</th><th>Duration</th>
+              <th>NP</th><th>TSS</th><th>Source</th>
+            </tr></thead>
+            <tbody>
+              {% for a in recent_activities %}
+              <tr>
+                <td class="text-muted small">{{ a.start_datetime|date:"j M" }}</td>
+                <td>
+                  {% if a.strava_url %}<a href="{{ a.strava_url }}" target="_blank">{{ a.name }}</a>
+                  {% else %}{{ a.name }}{% endif %}
+                </td>
+                <td class="text-muted small">{{ a.duration_formatted }}</td>
+                <td class="text-muted small">{{ a.normalized_power|floatformat:0|default:"—" }}</td>
+                <td class="text-muted small">{{ a.tss|floatformat:0|default:"—" }}</td>
+                <td><span class="badge bg-secondary">{{ a.source }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted p-3 mb-0">No activities yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

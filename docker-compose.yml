@@ -1,0 +1,65 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: training-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-training}
+      POSTGRES_USER:     ${DB_USER:-training}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      # Map to a Synology share — set POSTGRES_DATA_PATH in .env
+      - ${POSTGRES_DATA_PATH:-./data/postgres}:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-training}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: training-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_SECRET_KEY:    ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG:         ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-training.andyreagan.com localhost}
+      DB_NAME:              ${DB_NAME:-training}
+      DB_USER:              ${DB_USER:-training}
+      DB_PASSWORD:          ${DB_PASSWORD}
+      DB_HOST:              db
+      DB_PORT:              5432
+      STRAVA_CLIENT_ID:     ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+      STRAVA_REDIRECT_URI:  ${STRAVA_REDIRECT_URI:-https://training.andyreagan.com/integrations/strava/callback/}
+    volumes:
+      - ./media:/app/media
+    networks:
+      - internal
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             python manage.py seed_plans &&
+             gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 60 config.wsgi"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: training-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    networks:
+      - internal
+    depends_on:
+      - web
+
+networks:
+  internal:
+    driver: bridge

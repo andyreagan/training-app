@@ -1,0 +1,65 @@
+/* Training app — minimal custom styles on top of Bootstrap dark theme */
+
+body {
+  background-color: #0f1117;
+}
+
+.card {
+  background-color: #1a1d24;
+  border-color: #2d3142;
+}
+
+.card-header {
+  background-color: #1e2230;
+  border-color: #2d3142;
+  font-size: .875rem;
+}
+
+.list-group-item {
+  background-color: #1a1d24;
+  border-color: #2d3142;
+}
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-hover-bg: rgba(255,255,255,.04);
+}
+
+/* Workout chips in calendar sidebar */
+.workout-chip:hover {
+  background-color: rgba(255,255,255,.06) !important;
+}
+
+.workout-chip[draggable="true"] {
+  user-select: none;
+}
+
+/* FullCalendar dark theme tweaks */
+.fc .fc-toolbar-title    { font-size: 1.1rem; }
+.fc .fc-col-header-cell  { background: #1e2230; }
+.fc .fc-daygrid-day      { background: #1a1d24; }
+.fc .fc-daygrid-day:hover { background: #1e2230; }
+.fc .fc-day-today         { background: #1e2a1a !important; }
+.fc .fc-button-primary    {
+  background: #2d3142 !important;
+  border-color: #3d4255 !important;
+}
+.fc .fc-button-primary:hover {
+  background: #3d4255 !important;
+}
+.fc .fc-button-active {
+  background: #facc15 !important;
+  border-color: #facc15 !important;
+  color: #000 !important;
+}
+
+/* Progress bars */
+.progress { background-color: #2d3142; }
+
+/* Score label colors */
+.score-beginner    { color: #94a3b8; }
+.score-novice      { color: #4ade80; }
+.score-intermediate{ color: #facc15; }
+.score-advanced    { color: #fb923c; }
+.score-elite       { color: #f87171; }
+.score-worldclass  { color: #c084fc; }

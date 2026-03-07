@@ -1,0 +1,17 @@
+# Development-only dependencies (not shipped in the Docker image)
+-r requirements.txt
+
+# Testing
+pytest==8.3.5
+pytest-django==4.10.0
+pytest-playwright==0.7.2
+factory-boy==3.3.3
+
+# Type checking
+ty==0.0.20
+
+# Linting / formatting (also used via pre-commit, but handy to run directly)
+ruff==0.15.4
+
+# Pre-commit runner
+pre-commit==4.5.1

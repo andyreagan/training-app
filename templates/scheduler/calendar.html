@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block nav_calendar %}active{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet">
+<style>
+  #calendar { min-height: 600px; }
+  .fc-event { cursor: pointer; }
+  .fc-daygrid-event { font-size: .82rem; padding: 2px 4px; border-radius: 4px; }
+  #sidebar { max-height: calc(100vh - 120px); overflow-y: auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  {# ── Sidebar: workout picker ── #}
+  <div class="col-lg-3" id="sidebar">
+    <div class="card mb-3">
+      <div class="card-header small text-uppercase text-muted">Add Workout</div>
+      <div class="card-body p-2">
+        <input type="text" id="workoutSearch" class="form-control form-control-sm mb-2"
+               placeholder="Filter…">
+        <div id="workoutList">
+          {% regroup workouts by category_label as cat_groups %}
+          {% for group in cat_groups %}
+          <div class="mb-2">
+            <div class="text-muted small text-uppercase px-1 mb-1">{{ group.grouper }}</div>
+            {% for w in group.list %}
+            <div class="workout-chip d-flex align-items-center p-2 mb-1 rounded border border-secondary"
+                 style="cursor:grab; border-left: 4px solid {{ w.color }} !important;"
+                 data-workout-id="{{ w.pk }}"
+                 data-workout-name="{{ w.name }}"
+                 data-workout-color="{{ w.color }}"
+                 data-workout-duration="{{ w.total_duration_minutes }}"
+                 data-workout-tss="{{ w.tss_estimate }}"
+                 data-workout-category="{{ w.category_label }}"
+                 data-workout-summary="{{ w.summary }}"
+                 draggable="true"
+                 title="{{ w.summary }} · {{ w.total_duration_minutes }} min · ~{{ w.tss_estimate }} TSS">
+              <div class="flex-grow-1 overflow-hidden">
+                <div class="small fw-semibold text-truncate" style="max-width:180px">{{ w.name }}</div>
+                <div class="text-muted" style="font-size:.7rem">{{ w.summary }}</div>
+              </div>
+              <span class="badge bg-secondary ms-1" style="font-size:.65rem">{{ w.total_duration_minutes }}m</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header small text-uppercase text-muted">Plan</div>
+      <div class="card-body p-2">
+        <a href="{% url 'populate_from_plan' %}" class="btn btn-sm btn-outline-warning w-100 mb-1">
+          <i class="bi bi-calendar-check me-1"></i> Populate from plan
+        </a>
+        <a href="{% url 'plan_list' %}" class="btn btn-sm btn-outline-secondary w-100">
+          Browse plans
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {# ── Calendar ── #}
+  <div class="col-lg-9">
+    <div class="card">
+      <div class="card-body p-2">
+        <div id="calendar"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Event detail modal ── #}
+<div class="modal fade" id="eventModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" id="eventModalHeader">
+        <h5 class="modal-title" id="eventModalTitle">Workout</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="eventModalBody"></div>
+      <div class="modal-footer" id="eventModalFooter"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+const CSRF = '{{ csrf_token }}';
+const API = {
+  events:  '{% url "calendar_events_api" %}',
+  add:     '{% url "add_workout" %}',
+  moveBase:'{% url "move_workout" pk=0 %}'.replace('/0/', '/'),
+  delBase: '{% url "delete_workout" pk=0 %}'.replace('/0/', '/'),
+  togBase: '{% url "toggle_complete" pk=0 %}'.replace('/0/', '/'),
+};
+
+// ── Filter sidebar ─────────────────────────────────────────────────────────
+document.getElementById('workoutSearch').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.workout-chip').forEach(el => {
+    el.style.display = el.dataset.workoutName.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+// ── Drag from sidebar → calendar ────────────────────────────────────────────
+let draggingWorkout = null;
+document.querySelectorAll('.workout-chip').forEach(chip => {
+  chip.addEventListener('dragstart', e => {
+    draggingWorkout = {
+      id:       chip.dataset.workoutId,
+      name:     chip.dataset.workoutName,
+      color:    chip.dataset.workoutColor,
+      duration: chip.dataset.workoutDuration,
+      tss:      chip.dataset.workoutTss,
+      summary:  chip.dataset.workoutSummary,
+    };
+  });
+  chip.addEventListener('dragend', () => { draggingWorkout = null; });
+});
+
+// ── FullCalendar ───────────────────────────────────────────────────────────
+const eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+
+const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+  initialView: 'dayGridMonth',
+  headerToolbar: {
+    left:   'prev,next today',
+    center: 'title',
+    right:  'dayGridMonth,timeGridWeek,listWeek',
+  },
+  firstDay: 1,   // Monday
+  height: 'auto',
+
+  // ── Fetch events ──
+  events: function(info, success, failure) {
+    fetch(`${API.events}?start=${info.startStr}&end=${info.endStr}`)
+      .then(r => r.json()).then(success).catch(failure);
+  },
+
+  // ── Drop from sidebar ──
+  drop: function(info) { /* handled via dateClick + draggingWorkout */ },
+
+  // ── Click on empty date to quick-add ──
+  dateClick: function(info) {
+    if (draggingWorkout) return;   // dragging overrides click
+    showAddModal(info.dateStr);
+  },
+
+  // ── Drag event to reschedule ──
+  editable: true,
+  eventDrop: function(info) {
+    fetch(`${API.moveBase}${info.event.id}/`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({date: info.event.startStr.slice(0,10)}),
+    }).then(r => { if (!r.ok) info.revert(); });
+  },
+
+  // ── Click event for details ──
+  eventClick: function(info) {
+    showEventModal(info.event);
+  },
+
+  // ── External drag (from sidebar) ──
+  droppable: true,
+  eventReceive: function(info) { info.revert(); },  // we handle via the drop zone
+
+  eventDidMount: function(info) {
+    const p = info.el.closest('.fc-daygrid-event-harness') || info.el;
+    p.addEventListener('dragover', e => e.preventDefault());
+    p.addEventListener('drop', e => e.stopPropagation());
+  },
+});
+
+// Make calendar cells accept drops from sidebar
+calendar.getOption('drop');
+document.getElementById('calendar').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('calendar').addEventListener('drop', e => {
+  if (!draggingWorkout) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el?.closest('[data-date]');
+  if (cell) addWorkout(cell.dataset.date, draggingWorkout.id);
+});
+
+calendar.render();
+
+// ── Add workout helper ─────────────────────────────────────────────────────
+function addWorkout(date, workoutId, notes='') {
+  fetch(API.add, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-CSRFToken':CSRF},
+    body: JSON.stringify({date, workout_id: parseInt(workoutId), notes}),
+  })
+  .then(r => r.json())
+  .then(ev => { calendar.addEvent(ev); })
+  .catch(err => console.error(err));
+}
+
+// ── Quick-add modal (click on date) ───────────────────────────────────────
+function showAddModal(date) {
+  // Build a simple select in the modal
+  const opts = Array.from(document.querySelectorAll('.workout-chip'))
+    .map(c => `<option value="${c.dataset.workoutId}">${c.dataset.workoutName} (${c.dataset.workoutDuration} min)</option>`)
+    .join('');
+  document.getElementById('eventModalTitle').textContent = `Add workout — ${date}`;
+  document.getElementById('eventModalBody').innerHTML = `
+    <div class="mb-3">
+      <label class="form-label">Workout</label>
+      <select id="quickAddSelect" class="form-select">${opts}</select>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Notes <small class="text-muted">(optional)</small></label>
+      <input type="text" id="quickAddNotes" class="form-control" placeholder="e.g. morning ride">
+    </div>`;
+  document.getElementById('eventModalFooter').innerHTML = `
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-warning" id="quickAddConfirm">Add</button>`;
+  eventModal.show();
+  document.getElementById('quickAddConfirm').addEventListener('click', () => {
+    const wid   = document.getElementById('quickAddSelect').value;
+    const notes = document.getElementById('quickAddNotes').value;
+    addWorkout(date, wid, notes);
+    eventModal.hide();
+  });
+}
+
+// ── Event detail modal ─────────────────────────────────────────────────────
+function showEventModal(ev) {
+  const p = ev.extendedProps;
+  document.getElementById('eventModalHeader').style.borderBottom = `3px solid ${ev.backgroundColor}`;
+  document.getElementById('eventModalTitle').textContent = ev.title;
+  document.getElementById('eventModalBody').innerHTML = `
+    <p class="text-muted mb-1">${ev.start.toLocaleDateString()}</p>
+    <div class="mb-2">
+      <span class="badge" style="background:${ev.backgroundColor}">${p.category}</span>
+      ${p.completed ? '<span class="badge bg-success ms-1"><i class="bi bi-check2"></i> Completed</span>' : ''}
+    </div>
+    <dl class="row mb-2">
+      <dt class="col-5 text-muted">Duration</dt><dd class="col-7">${p.duration_minutes} min</dd>
+      <dt class="col-5 text-muted">Est. TSS</dt><dd class="col-7">${p.tss}</dd>
+      ${p.notes ? `<dt class="col-5 text-muted">Notes</dt><dd class="col-7">${p.notes}</dd>` : ''}
+    </dl>`;
+  document.getElementById('eventModalFooter').innerHTML = `
+    <button class="btn btn-outline-danger btn-sm me-auto" id="evDel">Delete</button>
+    <a class="btn btn-outline-secondary btn-sm" href="/plans/workout/${p.workout_id}/">Details & Download</a>
+    <button class="btn btn-outline-${p.completed ? 'secondary' : 'success'} btn-sm" id="evToggle">
+      ${p.completed ? 'Mark incomplete' : 'Mark complete'}
+    </button>
+    <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>`;
+  eventModal.show();
+
+  document.getElementById('evDel').addEventListener('click', () => {
+    if (!confirm('Remove this workout from the calendar?')) return;
+    fetch(`${API.delBase}${ev.id}/`, {method:'POST', headers:{'X-CSRFToken':CSRF}})
+      .then(() => { ev.remove(); eventModal.hide(); });
+  });
+  document.getElementById('evToggle').addEventListener('click', () => {
+    fetch(`${API.togBase}${ev.id}/`, {method:'POST', headers:{'X-CSRFToken':CSRF}})
+      .then(r => r.json())
+      .then(() => { calendar.refetchEvents(); eventModal.hide(); });
+  });
+}
+</script>
+{% endblock %}
