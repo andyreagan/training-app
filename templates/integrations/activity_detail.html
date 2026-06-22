@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .effort-btn { width: 36px; height: 36px; border-radius: 50%; font-weight: bold; font-size: .85rem; }
+  .effort-btn.active { box-shadow: 0 0 0 3px var(--bs-warning); }
+  .stat-card { text-align: center; }
+  .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; }
+  .stat-card .stat-label { font-size: .75rem; text-transform: uppercase; color: var(--bs-secondary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-1">{{ activity.name }}</h4>
+    <span class="text-muted">
+      {{ activity.start_datetime|date:"D j M Y, H:i" }}
+      · {{ activity.sport_type }}
+      · {{ activity.duration_formatted }}
+    </span>
+  </div>
+  <div class="d-flex gap-2">
+    {% if activity.strava_url %}
+    <a href="{{ activity.strava_url }}" target="_blank" class="btn btn-outline-warning btn-sm">
+      <i class="bi bi-box-arrow-up-right"></i> Strava
+    </a>
+    {% endif %}
+    <a href="{% url 'integrations_home' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+  </div>
+</div>
+
+{# ── Summary stats ── #}
+<div class="row g-3 mb-4">
+  {% if activity.normalized_power %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ activity.normalized_power|floatformat:0 }}</div>
+        <div class="stat-label">NP (W)</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if activity.average_watts %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ activity.average_watts|floatformat:0 }}</div>
+        <div class="stat-label">Avg Power (W)</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if activity.tss %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ activity.tss|floatformat:0 }}</div>
+        <div class="stat-label">TSS</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if activity.intensity_factor %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ activity.intensity_factor|floatformat:2 }}</div>
+        <div class="stat-label">IF</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if activity.average_hr %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ activity.average_hr }}</div>
+        <div class="stat-label">Avg HR</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if tsb_zone %}
+  <div class="col">
+    <div class="card stat-card">
+      <div class="card-body py-2">
+        <div class="stat-value">{{ tsb_on_day|floatformat:0 }}</div>
+        <div class="stat-label">TSB ({{ tsb_zone }})</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  {# ── Left: charts ── #}
+  <div class="col-lg-8">
+    {% if activity.has_power_stream %}
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-lightning me-1"></i> Power / Time</div>
+      <div class="card-body">
+        <canvas id="power-time-chart" height="200"></canvas>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-bar-chart me-1"></i> Power Curve</div>
+      <div class="card-body">
+        <canvas id="power-curve-chart" height="200"></canvas>
+      </div>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+      <div class="card-body text-muted">
+        <i class="bi bi-lightning-charge"></i>
+        No second-by-second power data available for this activity.
+        {% if activity.average_watts %}
+        Summary power metrics are shown above.
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Right: effort + FTP estimate ── #}
+  <div class="col-lg-4">
+    {# ── Effort rating ── #}
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-speedometer me-1"></i> Perceived Effort</div>
+      <div class="card-body">
+        <p class="text-muted small mb-2">How hard did this feel? (1 = trivial, 10 = maximal)</p>
+        <div class="d-flex flex-wrap gap-1 mb-2" id="effort-buttons">
+          {% with pe=activity.perceived_effort %}
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 1 %} active{% endif %}" data-effort="1">1</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 2 %} active{% endif %}" data-effort="2">2</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 3 %} active{% endif %}" data-effort="3">3</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 4 %} active{% endif %}" data-effort="4">4</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 5 %} active{% endif %}" data-effort="5">5</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 6 %} active{% endif %}" data-effort="6">6</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 7 %} active{% endif %}" data-effort="7">7</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 8 %} active{% endif %}" data-effort="8">8</button>
+          <button class="btn btn-outline-secondary effort-btn{% if pe == 9 %} active{% endif %}" data-effort="9">9</button>
+          <button class="btn btn-outline-danger effort-btn{% if pe == 10 %} active{% endif %}" data-effort="10">10</button>
+          {% endwith %}
+        </div>
+        <div class="small" id="effort-label">
+          {% if activity.perceived_effort %}
+            {{ activity.perceived_effort }}/10 — {{ activity.effort_label }}
+            {% if activity.effort_source == "strava" %}
+              <span class="badge bg-secondary">from Strava</span>
+            {% endif %}
+          {% else %}
+            Not rated yet
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── FTP estimate ── #}
+    {% if ftp_estimate %}
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-trophy me-1"></i> FTP Estimate</div>
+      <div class="card-body">
+        <div class="display-6 fw-bold text-warning mb-1">
+          {% if ftp_hr_adjusted %}
+            {{ ftp_hr_adjusted.ftp_adjusted }} W
+          {% else %}
+            {{ ftp_estimate.ftp }} W
+          {% endif %}
+        </div>
+        <div class="small text-muted">
+          {% if ftp_estimate.method == "20min_95pct" %}
+            95% of best 20-min power ({{ ftp_estimate.raw_power|floatformat:0 }}W)
+          {% else %}
+            Best 60-min power
+          {% endif %}
+        </div>
+        {% if ftp_hr_adjusted %}
+        <div class="small mt-1">
+          {% if ftp_hr_adjusted.ftp_adjusted > ftp_hr_adjusted.ftp_raw %}
+          <span class="text-info">
+            <i class="bi bi-heart-pulse me-1"></i>
+            Adjusted from {{ ftp_hr_adjusted.ftp_raw }}W — HR indicates
+            {{ ftp_hr_adjusted.hr_fraction|floatformat:0 }}% effort
+            ({{ ftp_hr_adjusted.confidence }} confidence)
+          </span>
+          {% else %}
+          <span class="text-muted">
+            <i class="bi bi-heart-pulse me-1"></i>
+            HR confirms near-maximal effort ({{ ftp_hr_adjusted.confidence }} confidence)
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% if tsb_zone == "fresh" and activity.perceived_effort and activity.perceived_effort >= 9 %}
+        <div class="alert alert-success mt-2 mb-0 small py-2">
+          <i class="bi bi-check-circle me-1"></i>
+          <strong>High confidence:</strong> all-out effort on a fresh day.
+        </div>
+        {% elif tsb_zone == "tired" or tsb_zone == "danger" %}
+        <div class="alert alert-warning mt-2 mb-0 small py-2">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          You were fatigued (TSB {{ tsb_on_day|floatformat:0 }}). True FTP may be higher.
+        </div>
+        {% elif not activity.perceived_effort and not ftp_hr_adjusted %}
+        <div class="alert alert-info mt-2 mb-0 small py-2">
+          <i class="bi bi-info-circle me-1"></i>
+          Rate your effort or add your max HR in profile to improve confidence.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Workout context ── #}
+    {% if activity.scheduled_workout %}
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-calendar-check me-1"></i> Planned Workout</div>
+      <div class="card-body">
+        <strong>{{ activity.scheduled_workout.workout.name }}</strong>
+        <div class="small text-muted mt-1">
+          Intended effort: {{ activity.scheduled_workout.workout.intended_effort }}/10
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if activity.has_power_stream %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const POWER_API = '{% url "activity_power_api" pk=activity.pk %}';
+const RATE_API = '{% url "rate_effort" pk=activity.pk %}';
+const CSRF = '{{ csrf_token }}';
+
+// ── Effort rating buttons ──────────────────────────────────────────────
+document.querySelectorAll('.effort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const effort = btn.dataset.effort;
+    fetch(RATE_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+      body: `perceived_effort=${effort}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.querySelectorAll('.effort-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('effort-label').textContent =
+        `${data.perceived_effort}/10 — ${data.effort_label}`;
+    });
+  });
+});
+
+// ── Load power data and render charts ──────────────────────────────────
+fetch(POWER_API)
+  .then(r => r.json())
+  .then(data => {
+    renderPowerTimeChart(data);
+    renderPowerCurveChart(data);
+  });
+
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h${m.toString().padStart(2,'0')}m`;
+  return `${m}m`;
+}
+
+function renderPowerTimeChart(data) {
+  // Downsample for performance — show ~1000 points max
+  const step = Math.max(1, Math.floor(data.time.length / 1000));
+  const labels = data.time.filter((_, i) => i % step === 0);
+  const smoothed = data.watts_smoothed.filter((_, i) => i % step === 0);
+  const raw = data.watts_raw.filter((_, i) => i % step === 0);
+
+  new Chart(document.getElementById('power-time-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Raw',
+          data: raw,
+          borderColor: 'rgba(148,163,184,0.2)',
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: false,
+          order: 2,
+        },
+        {
+          label: '30s Smoothed',
+          data: smoothed,
+          borderColor: '#3b82f6',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        x: {
+          title: { display: true, text: 'Time' },
+          ticks: { maxTicksLimit: 12, callback: (val) => formatTime(labels[val] || 0) },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Power (W)' },
+          min: 0,
+          grid: { color: 'rgba(255,255,255,0.05)' },
+        },
+      },
+    },
+  });
+}
+
+function renderPowerCurveChart(data) {
+  const curve = data.power_curve;
+  const labels = curve.map(p => p.duration);
+  const watts = curve.map(p => p.watts);
+
+  new Chart(document.getElementById('power-curve-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Best Power',
+        data: watts,
+        borderColor: '#a855f7',
+        backgroundColor: 'rgba(168,85,247,0.1)',
+        borderWidth: 2,
+        pointRadius: 3,
+        fill: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const dur = items[0]?.label;
+              return dur ? formatTime(Number(dur)) : '';
+            },
+            label: item => `${item.formattedValue} W`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: { display: true, text: 'Duration' },
+          ticks: {
+            callback: val => formatTime(val),
+            autoSkip: true,
+            maxTicksLimit: 10,
+          },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Power (W)' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+        },
+      },
+    },
+  });
+}
+</script>
+{% else %}
+<script>
+const RATE_API = '{% url "rate_effort" pk=activity.pk %}';
+const CSRF = '{{ csrf_token }}';
+
+document.querySelectorAll('.effort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const effort = btn.dataset.effort;
+    fetch(RATE_API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': CSRF},
+      body: `perceived_effort=${effort}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      document.querySelectorAll('.effort-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('effort-label').textContent =
+        `${data.perceived_effort}/10 — ${data.effort_label}`;
+    });
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

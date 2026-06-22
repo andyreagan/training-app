@@ -29,6 +29,7 @@ def _make_workout(category: str = "vo2max", score: float = 5.0) -> types.SimpleN
 
 # ── ZWO ───────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_zwo_returns_bytes():
     data = generate_zwo(_make_workout())
@@ -101,6 +102,7 @@ def test_zwo_accepts_ftp_kwarg():
 
 # ── ERG ───────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_erg_returns_bytes():
     data = generate_erg(_make_workout())
@@ -135,7 +137,7 @@ def test_erg_data_rows_are_time_watts():
             parts = line.split("\t")
             assert len(parts) == 2, f"Expected 2 tab-separated columns, got: {line!r}"
             float(parts[0])  # time in minutes — must be numeric
-            int(parts[1])    # watts — must be integer
+            int(parts[1])  # watts — must be integer
 
 
 @pytest.mark.unit
@@ -193,6 +195,7 @@ def test_erg_ftp_scales_watts():
 
 
 # ── FIT ───────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_fit_returns_bytes():

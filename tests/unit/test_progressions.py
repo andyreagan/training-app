@@ -23,12 +23,18 @@ from apps.plans.progressions import (
 
 ALL_CATEGORIES = list(LADDERS.keys())
 EXPECTED_CATEGORIES = {
-    "recovery", "endurance", "tempo", "sweet_spot",
-    "threshold", "vo2max", "anaerobic",
+    "recovery",
+    "endurance",
+    "tempo",
+    "sweet_spot",
+    "threshold",
+    "vo2max",
+    "anaerobic",
 }
 
 
 # ── Ladder structure ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_all_expected_categories_present():
@@ -58,9 +64,7 @@ def test_ladder_scores_are_unique(cat):
 @pytest.mark.parametrize("cat", ALL_CATEGORIES)
 def test_ladder_scores_in_range(cat):
     for rung in LADDERS[cat]:
-        assert 1.0 <= rung.score <= 10.0, (
-            f"{cat}: score {rung.score} out of [1.0, 10.0]"
-        )
+        assert 1.0 <= rung.score <= 10.0, f"{cat}: score {rung.score} out of [1.0, 10.0]"
 
 
 @pytest.mark.unit
@@ -80,22 +84,23 @@ def test_vo2max_ladder_matches_jem():
     """Verify the exact VO2max progression Jem describes in sparecycles.blog."""
     ladder = LADDERS["vo2max"]
     expected = [
-        (4, 4 * 60),   # 4×4 min
-        (4, 5 * 60),   # 4×5 min
-        (3, 6 * 60),   # 3×6 min
-        (4, 6 * 60),   # 4×6 min
-        (3, 8 * 60),   # 3×8 min
-        (4, 8 * 60),   # 4×8 min
+        (4, 4 * 60),  # 4×4 min
+        (4, 5 * 60),  # 4×5 min
+        (3, 6 * 60),  # 3×6 min
+        (4, 6 * 60),  # 4×6 min
+        (3, 8 * 60),  # 3×8 min
+        (4, 8 * 60),  # 4×8 min
         (3, 10 * 60),  # 3×10 min
         (4, 10 * 60),  # 4×10 min
     ]
     assert len(ladder) == len(expected)
-    for rung, (reps, work_sec) in zip(ladder, expected):
+    for rung, (reps, work_sec) in zip(ladder, expected, strict=True):
         assert rung.reps == reps
         assert rung.work_sec == work_sec
 
 
 # ── rung_for_score ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_rung_for_score_returns_first_rung_at_min():
@@ -144,6 +149,7 @@ def test_rung_for_score_default_5_is_valid(cat):
 
 # ── Ladder utility functions ───────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 @pytest.mark.parametrize("cat", ALL_CATEGORIES)
 def test_ladder_length_matches_ladders(cat):
@@ -175,6 +181,7 @@ def test_next_rung_returns_next_rung():
 
 
 # ── compute_structure ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize("cat", ALL_CATEGORIES)
@@ -238,6 +245,7 @@ def test_endurance_produces_steady_step():
 
 # ── Duration and TSS ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 @pytest.mark.parametrize("cat", ALL_CATEGORIES)
 def test_total_duration_is_positive(cat):
@@ -267,6 +275,7 @@ def test_tss_is_plausible(cat):
 
 # ── human_summary / score_label ───────────────────────────────────────────────
 
+
 @pytest.mark.unit
 @pytest.mark.parametrize("cat", ALL_CATEGORIES)
 def test_human_summary_is_non_empty(cat):
@@ -274,19 +283,22 @@ def test_human_summary_is_non_empty(cat):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("score,expected", [
-    (1.0, "Beginner"),
-    (1.9, "Beginner"),
-    (2.0, "Novice"),
-    (3.9, "Novice"),
-    (4.0, "Intermediate"),
-    (5.9, "Intermediate"),
-    (6.0, "Advanced"),
-    (7.9, "Advanced"),
-    (8.0, "Elite"),
-    (9.4, "Elite"),
-    (9.5, "World-class"),
-    (10.0, "World-class"),
-])
+@pytest.mark.parametrize(
+    "score,expected",
+    [
+        (1.0, "Beginner"),
+        (1.9, "Beginner"),
+        (2.0, "Novice"),
+        (3.9, "Novice"),
+        (4.0, "Intermediate"),
+        (5.9, "Intermediate"),
+        (6.0, "Advanced"),
+        (7.9, "Advanced"),
+        (8.0, "Elite"),
+        (9.4, "Elite"),
+        (9.5, "World-class"),
+        (10.0, "World-class"),
+    ],
+)
 def test_score_label(score, expected):
     assert score_label(score) == expected

@@ -14,33 +14,39 @@ Key design decisions
 import pytest
 from django.core.management import call_command
 
-
 # ── Seed fixture ───────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def seed(db):
     """Seed workout blocks + plans, return the TrainingPlan."""
     call_command("seed_plans", verbosity=0)
     from apps.plans.models import TrainingPlan
+
     return TrainingPlan.objects.get(slug="sustainable-training")
 
 
 # ── URL helper ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def live_url(live_server):
     """Return a callable: live_url('/path/') → full URL string."""
+
     def _url(path: str) -> str:
         return live_server.url + path
+
     return _url
 
 
 # ── User + login helpers ───────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def e2e_user(db):
     """A test user with FTP and progression scores, for E2E tests."""
     from django.contrib.auth import get_user_model
+
     from apps.plans.models import UserProgressionScores
 
     User = get_user_model()
@@ -48,8 +54,8 @@ def e2e_user(db):
         username="e2euser",
         email="e2e@example.com",
         password="e2epass123",
-        ftp=250,
     )
+    u.record_ftp(250)
     UserProgressionScores.objects.create(user=u)
     return u
 

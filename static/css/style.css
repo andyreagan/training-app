@@ -56,6 +56,47 @@ body {
 /* Progress bars */
 .progress { background-color: #2d3142; }
 
+/* ── Demo banner ──────────────────────────────────────────────────────────── */
+.demo-banner {
+  background: linear-gradient(90deg, #1a3a2a 0%, #0f2a1a 100%);
+  border-bottom: 1px solid #2a5c3a;
+  font-size: .85rem;
+  color: #a8e6c0;
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+}
+
+.demo-banner code.demo-cred {
+  background: rgba(0,0,0,.3);
+  border: 1px solid #2a5c3a;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .82rem;
+  color: #c8f7dc;
+  user-select: all;  /* click to select the whole value */
+}
+
+.demo-copy-btn {
+  background: none;
+  border: 1px solid #2a5c3a;
+  border-radius: 4px;
+  color: #a8e6c0;
+  padding: 1px 5px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background .15s;
+}
+.demo-copy-btn:hover {
+  background: rgba(255,255,255,.08);
+}
+
+/* Demo card on login page */
+.demo-login-card {
+  border-color: #2a5c3a;
+  background: linear-gradient(135deg, #0f2a1a 0%, #1a1d24 100%);
+}
+
 /* Score label colors */
 .score-beginner    { color: #94a3b8; }
 .score-novice      { color: #4ade80; }

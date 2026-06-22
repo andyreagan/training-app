@@ -101,6 +101,7 @@ const API = {
   moveBase:'{% url "move_workout" pk=0 %}'.replace('/0/', '/'),
   delBase: '{% url "delete_workout" pk=0 %}'.replace('/0/', '/'),
   togBase: '{% url "toggle_complete" pk=0 %}'.replace('/0/', '/'),
+  tsb:     '{% url "calendar_tsb_api" %}',
 };
 
 // ── Filter sidebar ─────────────────────────────────────────────────────────
@@ -179,6 +180,23 @@ const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), 
     p.addEventListener('dragover', e => e.preventDefault());
     p.addEventListener('drop', e => e.stopPropagation());
   },
+
+  // ── Color-code days by TSB zone ──
+  datesSet: function(info) {
+    fetch(`${API.tsb}?start=${info.startStr}&end=${info.endStr}`)
+      .then(r => r.json())
+      .then(tsbData => {
+        document.querySelectorAll('.fc-daygrid-day').forEach(cell => {
+          const date = cell.dataset.date;
+          if (date && tsbData[date]) {
+            cell.style.backgroundColor = tsbData[date].color + '30';
+          } else {
+            cell.style.backgroundColor = '';
+          }
+        });
+      })
+      .catch(() => {});
+  },
 });
 
 // Make calendar cells accept drops from sidebar
@@ -234,6 +252,26 @@ function showAddModal(date) {
 }
 
 // ── Event detail modal ─────────────────────────────────────────────────────
+function difficultyBars(diff) {
+  if (!diff || !diff.levels) return '';
+  let html = '<div class="mt-2 mb-2">';
+  html += '<div class="small text-muted text-uppercase mb-1">Predicted Difficulty</div>';
+  for (const lv of diff.levels) {
+    html += `<div class="d-flex align-items-center mb-1">
+      <span class="small text-muted" style="width:70px;font-size:.75rem">${lv.label}</span>
+      <div class="flex-grow-1 mx-1">
+        <div class="progress" style="height:12px">
+          <div class="progress-bar" style="width:${lv.pct}%;background:${lv.color}">${lv.pct >= 10 ? lv.pct + '%' : ''}</div>
+        </div>
+      </div>
+      <span class="small text-muted" style="width:30px;text-align:right;font-size:.75rem">${lv.pct}%</span>
+    </div>`;
+  }
+  html += `<div class="text-muted" style="font-size:.75rem">Most likely: <strong>${diff.label}</strong></div>`;
+  html += '</div>';
+  return html;
+}
+
 function showEventModal(ev) {
   const p = ev.extendedProps;
   document.getElementById('eventModalHeader').style.borderBottom = `3px solid ${ev.backgroundColor}`;
@@ -247,8 +285,11 @@ function showEventModal(ev) {
     <dl class="row mb-2">
       <dt class="col-5 text-muted">Duration</dt><dd class="col-7">${p.duration_minutes} min</dd>
       <dt class="col-5 text-muted">Est. TSS</dt><dd class="col-7">${p.tss}</dd>
+      <dt class="col-5 text-muted">Intended effort</dt><dd class="col-7">${p.intended_effort}/10</dd>
+      ${p.perceived_effort ? `<dt class="col-5 text-muted">Felt like</dt><dd class="col-7">${p.perceived_effort}/10</dd>` : ''}
       ${p.notes ? `<dt class="col-5 text-muted">Notes</dt><dd class="col-7">${p.notes}</dd>` : ''}
-    </dl>`;
+    </dl>
+    ${p.difficulty ? difficultyBars(p.difficulty) : ''}`;
   document.getElementById('eventModalFooter').innerHTML = `
     <button class="btn btn-outline-danger btn-sm me-auto" id="evDel">Delete</button>
     <a class="btn btn-outline-secondary btn-sm" href="/plans/workout/${p.workout_id}/">Details & Download</a>

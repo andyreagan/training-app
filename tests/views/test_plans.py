@@ -74,6 +74,7 @@ def test_adopt_plan_requires_login(client, seeded_plans):
 @pytest.mark.django_db
 def test_adopt_plan_creates_user_plan(auth_client, user, seeded_plans):
     from apps.plans.models import UserPlan
+
     assert not UserPlan.objects.filter(user=user).exists()
 
     response = auth_client.post(
@@ -87,6 +88,7 @@ def test_adopt_plan_creates_user_plan(auth_client, user, seeded_plans):
 @pytest.mark.django_db
 def test_adopt_plan_deactivates_previous_plan(auth_client, user, seeded_plans):
     from apps.plans.models import UserPlan
+
     # Adopt once
     auth_client.post(
         reverse("adopt_plan", kwargs={"slug": "sustainable-training"}),
@@ -103,9 +105,7 @@ def test_adopt_plan_deactivates_previous_plan(auth_client, user, seeded_plans):
 
 @pytest.mark.django_db
 def test_unadopt_plan_requires_login(client, seeded_plans):
-    response = client.post(
-        reverse("unadopt_plan", kwargs={"slug": "sustainable-training"})
-    )
+    response = client.post(reverse("unadopt_plan", kwargs={"slug": "sustainable-training"}))
     assert response.status_code in (301, 302)
     assert "login" in response["Location"]
 
@@ -113,41 +113,44 @@ def test_unadopt_plan_requires_login(client, seeded_plans):
 @pytest.mark.django_db
 def test_unadopt_plan_deactivates(auth_client, user, seeded_plans):
     from apps.plans.models import UserPlan
+
     UserPlan.objects.create(
         user=user,
         plan=seeded_plans,
         start_date="2026-01-01",
         is_active=True,
     )
-    response = auth_client.post(
-        reverse("unadopt_plan", kwargs={"slug": "sustainable-training"})
-    )
+    response = auth_client.post(reverse("unadopt_plan", kwargs={"slug": "sustainable-training"}))
     assert response.status_code in (301, 302)
     assert not UserPlan.objects.filter(user=user, is_active=True).exists()
 
 
 # ── Download views ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.django_db
-@pytest.mark.parametrize("fmt,content_type,magic", [
-    ("fit", "application/octet-stream", b".FIT"),
-    ("zwo", "application/xml",          b"<?xml"),
-    ("erg", "text/plain",               b"[COURSE HEADER]"),
-])
-def test_download_workout_returns_correct_content(auth_client, any_workout, fmt, content_type, magic):
+@pytest.mark.parametrize(
+    "fmt,content_type,magic",
+    [
+        ("fit", "application/octet-stream", b".FIT"),
+        ("zwo", "application/xml", b"<?xml"),
+        ("erg", "text/plain", b"[COURSE HEADER]"),
+    ],
+)
+def test_download_workout_returns_correct_content(
+    auth_client, any_workout, fmt, content_type, magic
+):
     response = auth_client.get(
         reverse("download_workout", kwargs={"pk": any_workout.pk, "fmt": fmt})
     )
     assert response.status_code == 200
     assert content_type in response["Content-Type"]
-    assert response.content[:len(magic)] == magic or magic in response.content[:50]
+    assert response.content[: len(magic)] == magic or magic in response.content[:50]
 
 
 @pytest.mark.django_db
 def test_download_workout_requires_login(client, any_workout):
-    response = client.get(
-        reverse("download_workout", kwargs={"pk": any_workout.pk, "fmt": "fit"})
-    )
+    response = client.get(reverse("download_workout", kwargs={"pk": any_workout.pk, "fmt": "fit"}))
     assert response.status_code in (301, 302)
 
 

@@ -2,6 +2,7 @@
 Root pytest conftest — fixtures shared across all test layers.
 """
 
+import datetime
 import os
 
 import pytest
@@ -14,6 +15,7 @@ os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
 
 # ── Users ──────────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def user(db):
     """An authenticated user with FTP set and default progression scores."""
@@ -22,9 +24,10 @@ def user(db):
         username="testuser",
         email="test@example.com",
         password="testpass123",
-        ftp=250,
     )
+    u.record_ftp(250, effective_date=datetime.date(2020, 1, 1))
     from apps.plans.models import UserProgressionScores
+
     UserProgressionScores.objects.create(user=u)
     return u
 
@@ -49,6 +52,7 @@ def auth_client(client, user):
 
 # ── Plan data ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def seeded_plans(db):
     """
@@ -57,8 +61,10 @@ def seeded_plans(db):
     Returns the TrainingPlan instance.
     """
     from django.core.management import call_command
+
     call_command("seed_plans", verbosity=0)
     from apps.plans.models import TrainingPlan
+
     return TrainingPlan.objects.get(slug="sustainable-training")
 
 
@@ -66,4 +72,5 @@ def seeded_plans(db):
 def any_workout(seeded_plans):
     """Any seeded WorkoutBlock — useful when the specific workout doesn't matter."""
     from apps.plans.models import WorkoutBlock
+
     return WorkoutBlock.objects.first()

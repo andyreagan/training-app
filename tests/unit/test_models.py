@@ -14,8 +14,8 @@ from apps.plans.models import (
 )
 from apps.plans.progressions import LADDERS
 
-
 # ── WorkoutBlock ───────────────────────────────────────────────────────────────
+
 
 @pytest.mark.django_db
 def test_workout_block_color_is_hex(seeded_plans):
@@ -83,7 +83,7 @@ def test_workout_block_structure_with_watts_scales_ftp(seeded_plans):
     # At least one step must have higher watts at 300W FTP
     watts250 = [s.get("watts_high", 0) for s in steps250]
     watts300 = [s.get("watts_high", 0) for s in steps300]
-    assert any(w300 > w250 for w250, w300 in zip(watts250, watts300))
+    assert any(w300 > w250 for w250, w300 in zip(watts250, watts300, strict=True))
 
 
 @pytest.mark.django_db
@@ -109,6 +109,7 @@ def test_workout_block_rung_property(seeded_plans):
 
 
 # ── UserProgressionScores ──────────────────────────────────────────────────────
+
 
 @pytest.mark.django_db
 def test_user_progression_scores_defaults_to_5(user):

@@ -1,5 +1,6 @@
-from pathlib import Path
 import os
+import sys
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,7 +28,14 @@ INSTALLED_APPS = [
     "apps.scheduler",
     "apps.devices",
     "apps.integrations",
+    "apps.fatigue",
+    "apps.difficulty",
 ]
+
+# Include mock Strava app when testing or explicitly requested
+_TESTING = "pytest" in sys.modules or os.environ.get("DJANGO_MOCK_STRAVA", "").lower() == "true"
+if _TESTING:
+    INSTALLED_APPS += ["apps.mock_strava"]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -38,6 +46,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Must come after AuthenticationMiddleware
+    "apps.accounts.middleware.DemoModeMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -114,3 +124,9 @@ STRAVA_CLIENT_SECRET = os.environ.get("STRAVA_CLIENT_SECRET", "")
 STRAVA_REDIRECT_URI = os.environ.get(
     "STRAVA_REDIRECT_URI", "https://training.andyreagan.com/integrations/strava/callback/"
 )
+# Override to point at a mock Strava server for testing (e.g. "http://localhost:8000/mock-strava")
+STRAVA_BASE_URL = os.environ.get("STRAVA_BASE_URL", "https://www.strava.com")
+
+# Demo mode
+DEMO_USERNAME = os.environ.get("DEMO_USERNAME", "demo")
+DEMO_PASSWORD = os.environ.get("DEMO_PASSWORD", "demo1234")

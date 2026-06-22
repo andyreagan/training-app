@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -39,9 +38,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "external_id",
-                    models.CharField(
-                        help_text="ID in the source system", max_length=200
-                    ),
+                    models.CharField(help_text="ID in the source system", max_length=200),
                 ),
                 ("name", models.CharField(max_length=300)),
                 ("sport_type", models.CharField(max_length=50)),
@@ -54,9 +51,7 @@ class Migration(migrations.Migration):
                 ("intensity_factor", models.FloatField(blank=True, null=True)),
                 (
                     "tss",
-                    models.FloatField(
-                        blank=True, help_text="Training Stress Score", null=True
-                    ),
+                    models.FloatField(blank=True, help_text="Training Stress Score", null=True),
                 ),
                 ("average_hr", models.PositiveIntegerField(blank=True, null=True)),
                 ("max_hr", models.PositiveIntegerField(blank=True, null=True)),
@@ -64,9 +59,7 @@ class Migration(migrations.Migration):
                 ("strava_url", models.URLField(blank=True)),
                 (
                     "raw_data",
-                    models.JSONField(
-                        default=dict, help_text="Full response from source API"
-                    ),
+                    models.JSONField(default=dict, help_text="Full response from source API"),
                 ),
                 ("synced_at", models.DateTimeField(auto_now=True)),
                 (

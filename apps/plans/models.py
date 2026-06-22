@@ -1,9 +1,9 @@
-from django.db import models
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.db import models
 from django.utils.text import slugify
 
 from .progressions import (
-    LADDERS,
     ZONE_POWER,
     compute_structure,
     compute_total_duration_minutes,
@@ -11,28 +11,38 @@ from .progressions import (
     human_summary,
     rung_for_score,
     score_label,
-    all_rungs,
 )
 
 
 class WorkoutCategory(models.TextChoices):
-    RECOVERY   = "recovery",   "Recovery"
-    ENDURANCE  = "endurance",  "Endurance"
-    TEMPO      = "tempo",      "Tempo"
+    RECOVERY = "recovery", "Recovery"
+    ENDURANCE = "endurance", "Endurance"
+    TEMPO = "tempo", "Tempo"
     SWEET_SPOT = "sweet_spot", "Sweet Spot"
-    THRESHOLD  = "threshold",  "Threshold"
-    VO2MAX     = "vo2max",     "VO2 Max"
-    ANAEROBIC  = "anaerobic",  "Anaerobic"
+    THRESHOLD = "threshold", "Threshold"
+    VO2MAX = "vo2max", "VO2 Max"
+    ANAEROBIC = "anaerobic", "Anaerobic"
 
+
+# Default intended effort (RPE) per zone category
+CATEGORY_EFFORT = {
+    WorkoutCategory.RECOVERY: 2,
+    WorkoutCategory.ENDURANCE: 4,
+    WorkoutCategory.TEMPO: 5,
+    WorkoutCategory.SWEET_SPOT: 7,
+    WorkoutCategory.THRESHOLD: 8,
+    WorkoutCategory.VO2MAX: 9,
+    WorkoutCategory.ANAEROBIC: 10,
+}
 
 CATEGORY_COLORS = {
-    WorkoutCategory.RECOVERY:   "#94a3b8",
-    WorkoutCategory.ENDURANCE:  "#4ade80",
-    WorkoutCategory.TEMPO:      "#facc15",
+    WorkoutCategory.RECOVERY: "#94a3b8",
+    WorkoutCategory.ENDURANCE: "#4ade80",
+    WorkoutCategory.TEMPO: "#facc15",
     WorkoutCategory.SWEET_SPOT: "#fb923c",
-    WorkoutCategory.THRESHOLD:  "#f87171",
-    WorkoutCategory.VO2MAX:     "#c084fc",
-    WorkoutCategory.ANAEROBIC:  "#e879f9",
+    WorkoutCategory.THRESHOLD: "#f87171",
+    WorkoutCategory.VO2MAX: "#c084fc",
+    WorkoutCategory.ANAEROBIC: "#e879f9",
 }
 
 
@@ -57,12 +67,20 @@ class WorkoutBlock(models.Model):
     # This IS the rung — it uniquely identifies a step on the ladder.
     progression_score = models.FloatField(
         help_text="Score threshold (1.0–10.0) at which this rung unlocks. "
-                  "Maps directly to a Rung in progressions.LADDERS."
+        "Maps directly to a Rung in progressions.LADDERS."
     )
 
     # Cached computed fields — updated automatically on save.
     total_duration_minutes = models.PositiveIntegerField(editable=False, default=0)
     tss_estimate = models.PositiveIntegerField(editable=False, default=0)
+
+    # Intended effort level (RPE 1–10).  Auto-populated from zone category
+    # on save if not explicitly set.
+    intended_effort = models.PositiveSmallIntegerField(
+        default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
+        help_text="Intended effort 1–10 (auto-set from zone if not overridden)",
+    )
 
     # Optional human-readable override (e.g. "Classic 2×20").
     # If blank, auto-generated from the progression ladder.
@@ -116,10 +134,10 @@ class WorkoutBlock(models.Model):
         steps = []
         for step in self.structure:
             s = dict(step)
-            s["watts_low"]  = round(ftp * step["power_low"]  / 100)
+            s["watts_low"] = round(ftp * step["power_low"] / 100)
             s["watts_high"] = round(ftp * step["power_high"] / 100)
             if "rest_power_low" in step:
-                s["rest_watts_low"]  = round(ftp * step["rest_power_low"]  / 100)
+                s["rest_watts_low"] = round(ftp * step["rest_power_low"] / 100)
                 s["rest_watts_high"] = round(ftp * step["rest_power_high"] / 100)
             steps.append(s)
         return steps
@@ -135,10 +153,14 @@ class WorkoutBlock(models.Model):
             self.category, self.progression_score
         )
         self.tss_estimate = compute_tss_estimate(self.category, self.progression_score)
+        # Default intended effort from zone if not explicitly overridden
+        if not self.intended_effort or self.intended_effort == 5:
+            self.intended_effort = CATEGORY_EFFORT.get(self.category, 5)
         super().save(*args, **kwargs)
 
 
 # ── Training plan ──────────────────────────────────────────────────────────────
+
 
 class TrainingPlan(models.Model):
     """
@@ -151,7 +173,7 @@ class TrainingPlan(models.Model):
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField()
     duration_weeks = models.PositiveIntegerField()
-    target_hours_per_week_low  = models.DecimalField(max_digits=4, decimal_places=1)
+    target_hours_per_week_low = models.DecimalField(max_digits=4, decimal_places=1)
     target_hours_per_week_high = models.DecimalField(max_digits=4, decimal_places=1)
     source_url = models.URLField(blank=True)
     is_published = models.BooleanField(default=True)
@@ -166,6 +188,7 @@ class TrainingPlan(models.Model):
     @property
     def weekly_structure(self):
         from collections import defaultdict
+
         grouped = defaultdict(lambda: defaultdict(list))
         for pb in self.planblock_set.select_related("workout").order_by(
             "week_number", "day_of_week", "order"
@@ -175,8 +198,13 @@ class TrainingPlan(models.Model):
 
 
 DAY_CHOICES = [
-    (0, "Monday"), (1, "Tuesday"), (2, "Wednesday"), (3, "Thursday"),
-    (4, "Friday"),  (5, "Saturday"), (6, "Sunday"),
+    (0, "Monday"),
+    (1, "Tuesday"),
+    (2, "Wednesday"),
+    (3, "Thursday"),
+    (4, "Friday"),
+    (5, "Saturday"),
+    (6, "Sunday"),
 ]
 
 
@@ -187,29 +215,30 @@ class PlanBlock(models.Model):
     this slot — athletes well above it may wish to target a higher rung.
     """
 
-    plan       = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE)
-    workout    = models.ForeignKey(WorkoutBlock, on_delete=models.CASCADE)
-    week_number  = models.PositiveIntegerField()
-    day_of_week  = models.IntegerField(choices=DAY_CHOICES)
-    order        = models.PositiveIntegerField(default=0)
+    plan = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE)
+    workout = models.ForeignKey(WorkoutBlock, on_delete=models.CASCADE)
+    week_number = models.PositiveIntegerField()
+    day_of_week = models.IntegerField(choices=DAY_CHOICES)
+    order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["week_number", "day_of_week", "order"]
 
     def __str__(self):
         return (
-            f"{self.plan} — Wk {self.week_number} "
-            f"{self.get_day_of_week_display()}: {self.workout}"
+            f"{self.plan} — Wk {self.week_number} {self.get_day_of_week_display()}: {self.workout}"
         )
 
 
 class UserPlan(models.Model):
     """Links a user to a training plan with a chosen start date."""
 
-    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_plans")
-    plan       = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_plans"
+    )
+    plan = models.ForeignKey(TrainingPlan, on_delete=models.CASCADE)
     start_date = models.DateField()
-    is_active  = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -225,6 +254,7 @@ class UserPlan(models.Model):
 
 
 # ── Per-user progression scores ────────────────────────────────────────────────
+
 
 class UserProgressionScores(models.Model):
     """
@@ -245,24 +275,24 @@ class UserProgressionScores(models.Model):
         related_name="progression_scores",
     )
 
-    recovery_score   = models.FloatField(default=5.0)
-    endurance_score  = models.FloatField(default=5.0)
-    tempo_score      = models.FloatField(default=5.0)
+    recovery_score = models.FloatField(default=5.0)
+    endurance_score = models.FloatField(default=5.0)
+    tempo_score = models.FloatField(default=5.0)
     sweet_spot_score = models.FloatField(default=5.0)
-    threshold_score  = models.FloatField(default=5.0)
-    vo2max_score     = models.FloatField(default=5.0)
-    anaerobic_score  = models.FloatField(default=5.0)
+    threshold_score = models.FloatField(default=5.0)
+    vo2max_score = models.FloatField(default=5.0)
+    anaerobic_score = models.FloatField(default=5.0)
 
     updated_at = models.DateTimeField(auto_now=True)
 
     SCORE_FIELDS = {
-        "recovery":   "recovery_score",
-        "endurance":  "endurance_score",
-        "tempo":      "tempo_score",
+        "recovery": "recovery_score",
+        "endurance": "endurance_score",
+        "tempo": "tempo_score",
         "sweet_spot": "sweet_spot_score",
-        "threshold":  "threshold_score",
-        "vo2max":     "vo2max_score",
-        "anaerobic":  "anaerobic_score",
+        "threshold": "threshold_score",
+        "vo2max": "vo2max_score",
+        "anaerobic": "anaerobic_score",
     }
 
     def score_for(self, category: str) -> float:
@@ -279,16 +309,16 @@ class UserProgressionScores(models.Model):
 
     def rung_summary(self) -> dict[str, dict]:
         """Return current rung info for every zone — useful for profile/dashboard."""
-        from .progressions import rung_for_score, next_rung, ladder_length
+        from .progressions import ladder_length, next_rung, rung_for_score
 
         ZONE_LABELS = {
-            "recovery":   "Recovery",
-            "endurance":  "Endurance",
-            "tempo":      "Tempo",
+            "recovery": "Recovery",
+            "endurance": "Endurance",
+            "tempo": "Tempo",
             "sweet_spot": "Sweet Spot",
-            "threshold":  "Threshold",
-            "vo2max":     "VO2 Max",
-            "anaerobic":  "Anaerobic",
+            "threshold": "Threshold",
+            "vo2max": "VO2 Max",
+            "anaerobic": "Anaerobic",
         }
 
         out = {}
@@ -297,15 +327,15 @@ class UserProgressionScores(models.Model):
             step, rung = rung_for_score(cat, score)
             next_info = next_rung(cat, score)
             out[cat] = {
-                "zone_label":   ZONE_LABELS[cat],
-                "score":        score,
-                "score_label":  score_label(score),
-                "step":         step,
-                "total_steps":  ladder_length(cat),
-                "summary":      rung.summary(),
-                "note":         rung.note,
+                "zone_label": ZONE_LABELS[cat],
+                "score": score,
+                "score_label": score_label(score),
+                "step": step,
+                "total_steps": ladder_length(cat),
+                "summary": rung.summary(),
+                "note": rung.note,
                 "next_summary": next_info[1].summary() if next_info else None,
-                "next_score":   next_info[1].score if next_info else None,
+                "next_score": next_info[1].score if next_info else None,
             }
         return out
 

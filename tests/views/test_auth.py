@@ -21,20 +21,26 @@ def test_register_page_get(client):
 
 @pytest.mark.django_db
 def test_login_with_valid_credentials(client, user):
-    response = client.post(reverse("login"), {
-        "username": "testuser",
-        "password": "testpass123",
-    })
+    response = client.post(
+        reverse("login"),
+        {
+            "username": "testuser",
+            "password": "testpass123",
+        },
+    )
     # Should redirect (to dashboard or next param)
     assert response.status_code in (301, 302)
 
 
 @pytest.mark.django_db
 def test_login_with_invalid_credentials(client):
-    response = client.post(reverse("login"), {
-        "username": "nobody",
-        "password": "wrongpass",
-    })
+    response = client.post(
+        reverse("login"),
+        {
+            "username": "nobody",
+            "password": "wrongpass",
+        },
+    )
     assert response.status_code == 200  # re-renders form
 
 
@@ -42,23 +48,29 @@ def test_login_with_invalid_credentials(client):
 def test_register_creates_user_and_redirects(client):
     User = get_user_model()
     assert not User.objects.filter(username="newrider").exists()
-    response = client.post(reverse("register"), {
-        "username": "newrider",
-        "password1": "str0ngP@ss!",
-        "password2": "str0ngP@ss!",
-        "email": "newrider@example.com",
-    })
+    response = client.post(
+        reverse("register"),
+        {
+            "username": "newrider",
+            "password1": "str0ngP@ss!",
+            "password2": "str0ngP@ss!",
+            "email": "newrider@example.com",
+        },
+    )
     assert response.status_code in (301, 302)
     assert User.objects.filter(username="newrider").exists()
 
 
 @pytest.mark.django_db
 def test_register_with_mismatched_passwords_returns_200(client):
-    response = client.post(reverse("register"), {
-        "username": "newrider",
-        "password1": "str0ngP@ss!",
-        "password2": "different!",
-    })
+    response = client.post(
+        reverse("register"),
+        {
+            "username": "newrider",
+            "password1": "str0ngP@ss!",
+            "password2": "different!",
+        },
+    )
     assert response.status_code == 200
 
 
@@ -85,13 +97,32 @@ def test_profile_contains_zone_names(auth_client, user, seeded_plans):
 
 
 @pytest.mark.django_db
-def test_profile_post_updates_ftp(auth_client, user):
-    # Profile view requires "save_profile" key to trigger profile form save
-    response = auth_client.post(reverse("profile"), {
-        "save_profile": "1", "ftp": 300, "weight_kg": "70.0",
-    })
+def test_profile_post_updates_weight(auth_client, user):
+    response = auth_client.post(
+        reverse("profile"),
+        {
+            "save_profile": "1",
+            "weight_kg": "70.0",
+        },
+    )
     assert response.status_code in (301, 302)
-    user.refresh_from_db()
+    assert user.weight_kg == 70.0
+
+
+@pytest.mark.django_db
+def test_ftp_history_add(auth_client, user):
+    """Adding an FTP entry via the history page sets User.ftp."""
+    response = auth_client.post(
+        reverse("ftp_history"),
+        {
+            "add_ftp": "1",
+            "ftp": 300,
+            "effective_date": "2026-03-16",
+            "source": "manual",
+            "notes": "Ramp test",
+        },
+    )
+    assert response.status_code in (301, 302)
     assert user.ftp == 300
 
 

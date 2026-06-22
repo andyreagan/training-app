@@ -4,8 +4,9 @@ Generate Zwift Workout (.zwo) files from a WorkoutBlock.
 ZWO is an XML format consumed by Zwift and many other training apps.
 Power values are expressed as fractions of FTP (1.0 = 100% FTP).
 """
-from xml.etree import ElementTree as ET
+
 from xml.dom import minidom
+from xml.etree import ElementTree as ET
 
 
 def _pct_to_frac(pct: int) -> float:
@@ -50,7 +51,9 @@ def _add_intervals(parent, step: dict):
         OnDuration=str(step["duration_seconds"]),
         OffDuration=str(step.get("rest_duration_seconds", 60)),
         OnPower=str(_pct_to_frac((step["power_low"] + step["power_high"]) // 2)),
-        OffPower=str(_pct_to_frac((step.get("rest_power_low", 40) + step.get("rest_power_high", 55)) // 2)),
+        OffPower=str(
+            _pct_to_frac((step.get("rest_power_low", 40) + step.get("rest_power_high", 55)) // 2)
+        ),
     )
 
 

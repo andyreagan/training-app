@@ -5,14 +5,21 @@ We avoid pulling in stravalib as a hard dependency for now; the raw
 requests calls keep things transparent and easy to adapt for Garmin
 or any other source later.
 """
+
 import datetime
+
 import requests
 from django.conf import settings
 from django.utils import timezone
 
 
-STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
-STRAVA_API_BASE = "https://www.strava.com/api/v3"
+def _strava_base_url() -> str:
+    """Return the base URL for Strava (overridable via settings.STRAVA_BASE_URL for testing)."""
+    return getattr(settings, "STRAVA_BASE_URL", "https://www.strava.com")
+
+
+STRAVA_TOKEN_URL_PATH = "/oauth/token"
+STRAVA_API_BASE_PATH = "/api/v3"
 
 
 class StravaClient:
@@ -27,7 +34,7 @@ class StravaClient:
             return  # token still valid
 
         resp = requests.post(
-            STRAVA_TOKEN_URL,
+            f"{_strava_base_url()}{STRAVA_TOKEN_URL_PATH}",
             data={
                 "client_id": settings.STRAVA_CLIENT_ID,
                 "client_secret": settings.STRAVA_CLIENT_SECRET,
@@ -41,7 +48,7 @@ class StravaClient:
         self.user.strava_access_token = data["access_token"]
         self.user.strava_refresh_token = data["refresh_token"]
         self.user.strava_token_expires_at = datetime.datetime.fromtimestamp(
-            data["expires_at"], tz=datetime.timezone.utc
+            data["expires_at"], tz=datetime.UTC
         )
         self.user.save(
             update_fields=[
@@ -54,7 +61,7 @@ class StravaClient:
     def _get(self, path, **params):
         self._refresh_if_needed()
         resp = requests.get(
-            f"{STRAVA_API_BASE}{path}",
+            f"{_strava_base_url()}{STRAVA_API_BASE_PATH}{path}",
             headers={"Authorization": f"Bearer {self.user.strava_access_token}"},
             params=params,
             timeout=15,
@@ -65,7 +72,9 @@ class StravaClient:
     def get_athlete(self):
         return self._get("/athlete")
 
-    def get_activities(self, after: datetime.datetime = None, per_page: int = 50, page: int = 1):
+    def get_activities(
+        self, after: datetime.datetime | None = None, per_page: int = 50, page: int = 1
+    ):
         params = {"per_page": per_page, "page": page}
         if after:
             params["after"] = int(after.timestamp())
@@ -74,10 +83,26 @@ class StravaClient:
     def get_activity(self, activity_id: int):
         return self._get(f"/activities/{activity_id}")
 
+    def get_activity_streams(self, activity_id: int, stream_types: list[str] | None = None):
+        """Fetch second-by-second stream data for an activity.
+
+        Returns a dict keyed by stream type, each value being a dict with
+        at least ``{"data": [...], "original_size": N}``.
+        """
+        if stream_types is None:
+            stream_types = ["time", "watts", "heartrate"]
+        keys = ",".join(stream_types)
+        return self._get(
+            f"/activities/{activity_id}/streams",
+            keys=keys,
+            key_by_type="true",
+        )
+
 
 def get_oauth_url(redirect_uri: str, client_id: str) -> str:
+    base = _strava_base_url()
     return (
-        f"https://www.strava.com/oauth/authorize"
+        f"{base}/oauth/authorize"
         f"?client_id={client_id}"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"
@@ -88,7 +113,7 @@ def get_oauth_url(redirect_uri: str, client_id: str) -> str:
 
 def exchange_code(code: str, client_id: str, client_secret: str, redirect_uri: str) -> dict:
     resp = requests.post(
-        STRAVA_TOKEN_URL,
+        f"{_strava_base_url()}{STRAVA_TOKEN_URL_PATH}",
         data={
             "client_id": client_id,
             "client_secret": client_secret,

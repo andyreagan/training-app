@@ -14,32 +14,30 @@ from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
 from apps.plans.models import (
-    DAY_CHOICES,
     PlanBlock,
     TrainingPlan,
     WorkoutBlock,
     WorkoutCategory,
 )
-from apps.plans.progressions import LADDERS, all_rungs, human_summary
-
+from apps.plans.progressions import all_rungs
 
 CATEGORY_DESCRIPTIONS = {
-    "recovery":   "Easy active recovery. Stay below 55% FTP the whole ride. "
-                  "Purpose: flush fatigue, not accumulate fitness.",
-    "endurance":  "Zone 2 aerobic base. Fully conversational pace. "
-                  "The primary currency of Jem's Sustainable Training framework.",
-    "tempo":      "Comfortably uncomfortable sustained effort. "
-                  "Builds aerobic capacity above pure Z2 without heavy recovery cost.",
+    "recovery": "Easy active recovery. Stay below 55% FTP the whole ride. "
+    "Purpose: flush fatigue, not accumulate fitness.",
+    "endurance": "Zone 2 aerobic base. Fully conversational pace. "
+    "The primary currency of Jem's Sustainable Training framework.",
+    "tempo": "Comfortably uncomfortable sustained effort. "
+    "Builds aerobic capacity above pure Z2 without heavy recovery cost.",
     "sweet_spot": "88–93% FTP — Jem's highest-value training zone. "
-                  "High aerobic stimulus, manageable fatigue. Progress by lengthening "
-                  "individual intervals, not just adding reps.",
-    "threshold":  "95–105% FTP. Hard sustained efforts that improve your FTP ceiling. "
-                  "Even a 1-minute increase in interval duration is meaningful here.",
-    "vo2max":     "106–120% FTP. Short, hard intervals targeting VO2max. "
-                  "Progression: 4×4 min → 4×5 min → 3×6 min → 4×6 min → 3×8 min …\n"
-                  "Longer single efforts are harder even when total volume drops.",
-    "anaerobic":  "Above 120% FTP. Short maximal efforts. "
-                  "Rest is generous — goal is max power output, not grinding.",
+    "High aerobic stimulus, manageable fatigue. Progress by lengthening "
+    "individual intervals, not just adding reps.",
+    "threshold": "95–105% FTP. Hard sustained efforts that improve your FTP ceiling. "
+    "Even a 1-minute increase in interval duration is meaningful here.",
+    "vo2max": "106–120% FTP. Short, hard intervals targeting VO2max. "
+    "Progression: 4×4 min → 4×5 min → 3×6 min → 4×6 min → 3×8 min …\n"
+    "Longer single efforts are harder even when total volume drops.",
+    "anaerobic": "Above 120% FTP. Short maximal efforts. "
+    "Rest is generous — goal is max power output, not grinding.",
 }
 
 # ── Plan template ──────────────────────────────────────────────────────────────
@@ -65,41 +63,41 @@ PLAN_WEEKS = []
 # Phase 1 — Foundation (weeks 1–4): establish aerobic base, intro quality
 for wk in range(1, 5):
     PLAN_WEEKS += [
-        (wk, 1, "endurance",  3.0),   # Tue — moderate Z2
-        (wk, 2, "endurance",  2.0),   # Wed — easy Z2
-        (wk, 3, "sweet_spot", 2.0),   # Thu — intro SS
-        (wk, 5, "endurance",  4.0),   # Sat — longer Z2
-        (wk, 6, "recovery",   2.5),   # Sun — recovery spin
+        (wk, 1, "endurance", 3.0),  # Tue — moderate Z2
+        (wk, 2, "endurance", 2.0),  # Wed — easy Z2
+        (wk, 3, "sweet_spot", 2.0),  # Thu — intro SS
+        (wk, 5, "endurance", 4.0),  # Sat — longer Z2
+        (wk, 6, "recovery", 2.5),  # Sun — recovery spin
     ]
 
 # Phase 2 — Base (weeks 5–10): build SS volume, add tempo
 for wk in range(5, 11):
     PLAN_WEEKS += [
-        (wk, 1, "sweet_spot", 3.5),   # Tue — SS main set
-        (wk, 2, "endurance",  4.0),   # Wed — Z2
-        (wk, 3, "tempo",      3.0),   # Thu — tempo
-        (wk, 5, "endurance",  6.0),   # Sat — long Z2
-        (wk, 6, "sweet_spot", 2.0),   # Sun — easy SS or Z2
+        (wk, 1, "sweet_spot", 3.5),  # Tue — SS main set
+        (wk, 2, "endurance", 4.0),  # Wed — Z2
+        (wk, 3, "tempo", 3.0),  # Thu — tempo
+        (wk, 5, "endurance", 6.0),  # Sat — long Z2
+        (wk, 6, "sweet_spot", 2.0),  # Sun — easy SS or Z2
     ]
 
 # Phase 3 — Build (weeks 11–16): introduce threshold, push SS
 for wk in range(11, 17):
     PLAN_WEEKS += [
-        (wk, 1, "sweet_spot", 5.0),   # Tue — classic 2×20 territory
-        (wk, 2, "endurance",  5.0),   # Wed
-        (wk, 3, "threshold",  3.0),   # Thu — threshold work
-        (wk, 5, "endurance",  7.0),   # Sat — long ride
-        (wk, 6, "sweet_spot", 4.0),   # Sun
+        (wk, 1, "sweet_spot", 5.0),  # Tue — classic 2×20 territory
+        (wk, 2, "endurance", 5.0),  # Wed
+        (wk, 3, "threshold", 3.0),  # Thu — threshold work
+        (wk, 5, "endurance", 7.0),  # Sat — long ride
+        (wk, 6, "sweet_spot", 4.0),  # Sun
     ]
 
 # Phase 4 — Peak (weeks 17–20): vo2max, maintain base
 for wk in range(17, 21):
     PLAN_WEEKS += [
-        (wk, 1, "vo2max",     4.0),   # Tue — VO2max (e.g. 3×6 min)
-        (wk, 2, "endurance",  5.0),   # Wed
-        (wk, 3, "threshold",  5.0),   # Thu
-        (wk, 5, "endurance",  8.0),   # Sat — long Z2
-        (wk, 6, "sweet_spot", 5.0),   # Sun
+        (wk, 1, "vo2max", 4.0),  # Tue — VO2max (e.g. 3×6 min)
+        (wk, 2, "endurance", 5.0),  # Wed
+        (wk, 3, "threshold", 5.0),  # Thu
+        (wk, 5, "endurance", 8.0),  # Sat — long Z2
+        (wk, 6, "sweet_spot", 5.0),  # Sun
     ]
 
 
@@ -116,9 +114,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options["reset"]:
             WorkoutBlock.objects.all().delete()
-            TrainingPlan.objects.filter(
-                slug="sustainable-training"
-            ).delete()
+            TrainingPlan.objects.filter(slug="sustainable-training").delete()
             self.stdout.write("Existing data cleared.")
 
         # ── 1. Create WorkoutBlocks ────────────────────────────────────────────
@@ -127,7 +123,7 @@ class Command(BaseCommand):
 
         for category in WorkoutCategory.values:
             cat_desc = CATEGORY_DESCRIPTIONS.get(category, "")
-            for step, rung in all_rungs(category):
+            for _step, rung in all_rungs(category):
                 summary = rung.summary()
                 cat_label = WorkoutCategory(category).label
                 name = f"{cat_label} — {summary}"
@@ -135,9 +131,11 @@ class Command(BaseCommand):
                 slug = slug_base
                 # Ensure uniqueness in case of rounding collisions
                 n = 1
-                while WorkoutBlock.objects.filter(slug=slug).exclude(
-                    category=category, progression_score=rung.score
-                ).exists():
+                while (
+                    WorkoutBlock.objects.filter(slug=slug)
+                    .exclude(category=category, progression_score=rung.score)
+                    .exists()
+                ):
                     slug = f"{slug_base}-{n}"
                     n += 1
 
@@ -189,9 +187,7 @@ class Command(BaseCommand):
                 return blocks_by_key[(category, target_score)]
             # Closest by absolute score difference
             candidates = [
-                (abs(k[1] - target_score), v)
-                for k, v in blocks_by_key.items()
-                if k[0] == category
+                (abs(k[1] - target_score), v) for k, v in blocks_by_key.items() if k[0] == category
             ]
             if candidates:
                 return min(candidates, key=lambda x: x[0])[1]

@@ -7,7 +7,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.plans.models import WorkoutBlock
+
 from .models import ScheduledWorkout
+from .queries import compute_tsb_for_range, get_user_scores, predict_workout_difficulty
 
 
 @login_required
@@ -22,29 +24,45 @@ def calendar_events_api(request):
     start = request.GET.get("start")
     end = request.GET.get("end")
 
-    qs = ScheduledWorkout.objects.filter(user=request.user).select_related("workout")
+    qs = ScheduledWorkout.objects.filter(user=request.user).select_related("workout", "activity")
     if start:
         qs = qs.filter(date__gte=start[:10])
     if end:
         qs = qs.filter(date__lte=end[:10])
 
+    # Fetch difficulty inputs once for the batch
+    tsb_by_date = compute_tsb_for_range(request.user, start, end)
+    user_scores = get_user_scores(request.user)
+
     events = []
     for sw in qs:
+        ext = {
+            "category": sw.workout.category_label,
+            "duration_minutes": sw.workout.total_duration_minutes,
+            "tss": sw.workout.tss_estimate,
+            "completed": sw.completed,
+            "notes": sw.notes,
+            "workout_id": sw.workout.pk,
+            "workout_slug": sw.workout.slug,
+            "intended_effort": sw.workout.intended_effort,
+        }
+        if sw.activity_id:
+            ext["activity_id"] = sw.activity_id
+            ext["perceived_effort"] = sw.activity.perceived_effort
+
+        # Difficulty prediction for uncompleted workouts
+        if not sw.completed:
+            tsb = tsb_by_date.get(sw.date, 0.0)
+            diff = predict_workout_difficulty(sw.workout, user_scores, tsb)
+            ext["difficulty"] = diff.to_dict()
+
         events.append(
             {
                 "id": sw.pk,
                 "title": sw.workout.name,
                 "start": sw.date.isoformat(),
                 "color": sw.workout.color,
-                "extendedProps": {
-                    "category": sw.workout.category_label,
-                    "duration_minutes": sw.workout.total_duration_minutes,
-                    "tss": sw.workout.tss_estimate,
-                    "completed": sw.completed,
-                    "notes": sw.notes,
-                    "workout_id": sw.workout.pk,
-                    "workout_slug": sw.workout.slug,
-                },
+                "extendedProps": ext,
             }
         )
     return JsonResponse(events, safe=False)
@@ -75,6 +93,7 @@ def add_workout(request):
             notes = request.POST.get("notes", "")
         except (KeyError, ValueError) as e:
             from django.contrib import messages
+
             messages.error(request, f"Could not add workout: {e}")
             return redirect("calendar")
         as_json = False
@@ -88,24 +107,27 @@ def add_workout(request):
 
     if not as_json:
         from django.contrib import messages
+
         messages.success(request, f"Added {workout.name} to {date}.")
         return redirect("calendar")
 
-    return JsonResponse({
-        "id": sw.pk,
-        "title": workout.name,
-        "start": date.isoformat(),
-        "color": workout.color,
-        "extendedProps": {
-            "category": workout.category_label,
-            "duration_minutes": workout.total_duration_minutes,
-            "tss": workout.tss_estimate,
-            "completed": sw.completed,
-            "notes": sw.notes,
-            "workout_id": workout.pk,
-            "workout_slug": workout.slug,
-        },
-    })
+    return JsonResponse(
+        {
+            "id": sw.pk,
+            "title": workout.name,
+            "start": date.isoformat(),
+            "color": workout.color,
+            "extendedProps": {
+                "category": workout.category_label,
+                "duration_minutes": workout.total_duration_minutes,
+                "tss": workout.tss_estimate,
+                "completed": sw.completed,
+                "notes": sw.notes,
+                "workout_id": workout.pk,
+                "workout_slug": workout.slug,
+            },
+        }
+    )
 
 
 @login_required
@@ -144,9 +166,12 @@ def populate_from_plan(request):
     """Populate the calendar from the user's active plan starting at their chosen start date."""
     from apps.plans.models import UserPlan
 
-    active = UserPlan.objects.filter(user=request.user, is_active=True).select_related("plan").first()
+    active = (
+        UserPlan.objects.filter(user=request.user, is_active=True).select_related("plan").first()
+    )
     if not active:
         from django.contrib import messages
+
         messages.warning(request, "You don't have an active training plan. Select one first.")
         return redirect("plan_list")
 
@@ -176,6 +201,7 @@ def populate_from_plan(request):
             created += 1
 
         from django.contrib import messages
+
         messages.success(request, f"Added {created} workouts to your calendar.")
         return redirect("calendar")
 

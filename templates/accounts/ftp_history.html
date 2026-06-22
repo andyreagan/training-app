@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}FTP History{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  {# ── Add new entry ── #}
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-plus-circle me-1"></i> Record FTP</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}
+            <div class="form-text text-muted">{{ field.help_text }}</div>
+            {% endif %}
+            {% for error in field.errors %}
+            <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" name="add_ftp" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> Add Entry
+          </button>
+          <a href="{% url 'profile' %}" class="btn btn-outline-secondary ms-2">
+            Back to Profile
+          </a>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ── History table ── #}
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-clock-history me-1"></i> FTP History
+        {% if user.ftp %}
+          <span class="badge bg-warning text-dark ms-2">Current: {{ user.ftp }} W</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if entries %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover align-middle">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>FTP (W)</th>
+                <th>Source</th>
+                <th>Notes</th>
+                <th style="width:120px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in entries %}
+              <tr{% if forloop.first %} class="table-active"{% endif %}>
+                <td>{{ entry.effective_date|date:"M j, Y" }}</td>
+                <td class="fw-semibold">{{ entry.ftp }}</td>
+                <td>
+                  <span class="badge bg-secondary">{{ entry.get_source_display }}</span>
+                </td>
+                <td class="text-muted small">{{ entry.notes|default:"—" }}</td>
+                <td>
+                  <a href="{% url 'ftp_history_edit' entry.pk %}"
+                     class="btn btn-outline-primary btn-sm me-1"
+                     title="Edit">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  <form method="post" action="{% url 'ftp_history_delete' entry.pk %}"
+                        class="d-inline"
+                        onsubmit="return confirm('Delete this FTP entry?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">
+          No FTP entries yet. Add your first one to start tracking your progress!
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

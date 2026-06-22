@@ -1,13 +1,14 @@
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 
 from apps.plans.models import WorkoutBlock
-from .generators import generate_zwo, generate_erg, generate_fit
+
+from .generators import generate_erg, generate_fit, generate_zwo
 
 FORMATS = {
-    "zwo": ("application/xml",        ".zwo", generate_zwo),
-    "erg": ("text/plain",             ".erg", generate_erg),
+    "zwo": ("application/xml", ".zwo", generate_zwo),
+    "erg": ("text/plain", ".erg", generate_erg),
     "fit": ("application/octet-stream", ".fit", generate_fit),
 }
 

@@ -24,8 +24,17 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # ── ty: type checking ──────────────────────────────────────────────────────
-  - repo: https://github.com/astral-sh/ty
-    rev: 0.0.20
+  # ── ty: type checking ─────────────────────────────────────────────────────
+  # ty doesn't publish pre-commit hooks yet, so we drive it via `uv run`
+  # which picks up the exact version pinned in uv.lock.
+  - repo: local
     hooks:
-      - id: ty-check
+      - id: ty
+        name: ty type check
+        entry: uv run --frozen ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        # .venv gives ty the Django/requests stubs for import resolution.
+        # Skip migrations and tests — too much dynamism for ty at this stage.
+        args: [--python, .venv, apps, config]

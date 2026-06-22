@@ -68,8 +68,9 @@ def test_adopt_plan_via_modal(logged_in_page, live_url, seed):
 
 @pytest.mark.django_db(transaction=True)
 def test_adopted_plan_shows_active_badge(logged_in_page, live_url, seed, e2e_user):
-    from apps.plans.models import TrainingPlan, UserPlan
     import datetime
+
+    from apps.plans.models import TrainingPlan, UserPlan
 
     plan = TrainingPlan.objects.get(slug="sustainable-training")
     UserPlan.objects.create(user=e2e_user, plan=plan, start_date=datetime.date.today())

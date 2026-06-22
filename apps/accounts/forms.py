@@ -1,6 +1,9 @@
+import datetime
+
 from django import forms
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from .models import User
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+
+from .models import FTPHistory, User
 
 
 class RegisterForm(UserCreationForm):
@@ -24,39 +27,75 @@ class LoginForm(AuthenticationForm):
 
 
 class ProfileForm(forms.ModelForm):
+    weight_kg = forms.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 70.5"}),
+        help_text="Body weight in kg — used to compute W/kg. "
+        "Changes are recorded in your weight history automatically.",
+    )
+
     class Meta:
         model = User
-        fields = ("first_name", "last_name", "email", "ftp", "max_hr", "weight_kg")
+        fields = ("first_name", "last_name", "email", "max_hr", "resting_hr")
         widgets = {
             "first_name": forms.TextInput(attrs={"class": "form-control"}),
-            "last_name":  forms.TextInput(attrs={"class": "form-control"}),
-            "email":      forms.EmailInput(attrs={"class": "form-control"}),
-            "ftp":        forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 250"}),
-            "max_hr":     forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 185"}),
-            "weight_kg":  forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 70.5"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control"}),
+            "email": forms.EmailInput(attrs={"class": "form-control"}),
+            "max_hr": forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 185"}),
+            "resting_hr": forms.NumberInput(
+                attrs={"class": "form-control", "placeholder": "e.g. 55"}
+            ),
         }
         help_texts = {
-            "ftp":       "Functional Threshold Power in watts. All workout intensities scale from this.",
-            "max_hr":    "Maximum heart rate in bpm.",
-            "weight_kg": "Body weight in kg — used to compute W/kg.",
+            "max_hr": "Maximum heart rate in bpm.",
+            "resting_hr": "Resting heart rate in bpm — used for HR-based training load.",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-fill weight from history
+        if self.instance and self.instance.pk:
+            self.initial["weight_kg"] = self.instance.weight_kg
+
+
+class FTPEntryForm(forms.ModelForm):
+    """Form for adding / editing a single FTP history entry."""
+
+    class Meta:
+        model = FTPHistory
+        fields = ("ftp", "effective_date", "source", "notes")
+        widgets = {
+            "ftp": forms.NumberInput(attrs={"class": "form-control", "placeholder": "e.g. 250"}),
+            "effective_date": forms.DateInput(
+                attrs={"class": "form-control", "type": "date"},
+            ),
+            "source": forms.Select(attrs={"class": "form-control"}),
+            "notes": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Optional notes"},
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.initial.get("effective_date") and not self.instance.pk:
+            self.initial["effective_date"] = datetime.date.today()
 
 
 class ProgressionScoresForm(forms.Form):
     """
     Lets the user manually set their per-zone progression scores (1.0–10.0).
-    The score determines which rung of each zone's ladder they're currently on.
-    A score of 5.0 is the 'plain FTP' midpoint — a safe default before any
-    training history exists.
     """
+
     ZONE_LABELS = [
-        ("recovery",   "Recovery"),
-        ("endurance",  "Endurance"),
-        ("tempo",      "Tempo"),
+        ("recovery", "Recovery"),
+        ("endurance", "Endurance"),
+        ("tempo", "Tempo"),
         ("sweet_spot", "Sweet Spot"),
-        ("threshold",  "Threshold"),
-        ("vo2max",     "VO2 Max"),
-        ("anaerobic",  "Anaerobic"),
+        ("threshold", "Threshold"),
+        ("vo2max", "VO2 Max"),
+        ("anaerobic", "Anaerobic"),
     ]
 
     def __init__(self, *args, scores_instance=None, **kwargs):
@@ -68,11 +107,13 @@ class ProgressionScoresForm(forms.Form):
                 min_value=1.0,
                 max_value=10.0,
                 initial=current,
-                widget=forms.NumberInput(attrs={
-                    "class": "form-control form-control-sm",
-                    "step": "0.1",
-                    "min": "1.0",
-                    "max": "10.0",
-                }),
+                widget=forms.NumberInput(
+                    attrs={
+                        "class": "form-control form-control-sm",
+                        "step": "0.1",
+                        "min": "1.0",
+                        "max": "10.0",
+                    }
+                ),
                 help_text="1.0 = beginner, 5.0 = intermediate, 10.0 = world-class",
             )

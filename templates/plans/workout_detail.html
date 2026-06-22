@@ -139,6 +139,35 @@
       </div>
     </div>
 
+    {% if difficulty %}
+    <div class="card mb-3">
+      <div class="card-header"><i class="bi bi-speedometer2 me-1"></i> Predicted Difficulty</div>
+      <div class="card-body">
+        <div class="mb-2">
+          {% for level in difficulty.to_dict.levels %}
+          <div class="d-flex align-items-center mb-1">
+            <span class="small text-muted" style="width:80px">{{ level.label }}</span>
+            <div class="flex-grow-1 mx-2">
+              <div class="progress" style="height:16px">
+                <div class="progress-bar" role="progressbar"
+                     style="width:{{ level.pct }}%; background:{{ level.color }}"
+                     aria-valuenow="{{ level.pct }}" aria-valuemin="0" aria-valuemax="100">
+                  {% if level.pct >= 10 %}{{ level.pct }}%{% endif %}
+                </div>
+              </div>
+            </div>
+            <span class="small text-muted" style="width:35px; text-align:right">{{ level.pct }}%</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="text-muted small">
+          Most likely: <strong>{{ difficulty.label }}</strong>
+          (expected {{ difficulty.expected|floatformat:1 }}/5)
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="card">
       <div class="card-header"><i class="bi bi-calendar-plus me-1"></i> Add to Calendar</div>
       <div class="card-body">

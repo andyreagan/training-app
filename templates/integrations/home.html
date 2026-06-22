@@ -55,8 +55,7 @@
               <tr>
                 <td class="text-muted small">{{ a.start_datetime|date:"j M" }}</td>
                 <td>
-                  {% if a.strava_url %}<a href="{{ a.strava_url }}" target="_blank">{{ a.name }}</a>
-                  {% else %}{{ a.name }}{% endif %}
+                  <a href="{% url 'activity_detail' pk=a.pk %}">{{ a.name }}</a>
                 </td>
                 <td class="text-muted small">{{ a.duration_formatted }}</td>
                 <td class="text-muted small">{{ a.normalized_power|floatformat:0|default:"—" }}</td>

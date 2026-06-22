@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Fatigue Monitor{% endblock %}
+{% block nav_fatigue %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+  #fatigue-chart { min-height: 400px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 4px; margin-right: 16px; font-size: .85rem; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-heart-pulse me-1"></i> Fatigue Monitor</span>
+    <div class="d-flex gap-2">
+      <select id="rangeDaysBack" class="form-select form-select-sm" style="width:auto">
+        <option value="30">Past 30 days</option>
+        <option value="90" selected>Past 90 days</option>
+        <option value="180">Past 6 months</option>
+        <option value="365">Past year</option>
+      </select>
+      <select id="rangeDaysForward" class="form-select form-select-sm" style="width:auto">
+        <option value="0">No forecast</option>
+        <option value="14">+2 weeks</option>
+        <option value="30" selected>+30 days</option>
+        <option value="60">+60 days</option>
+      </select>
+    </div>
+  </div>
+  <div class="card-body">
+    <canvas id="fatigue-chart"></canvas>
+  </div>
+  <div class="card-footer text-muted small">
+    <div class="legend-item"><span class="legend-dot" style="background:#3b82f6"></span> CTL (Fitness)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> ATL (Fatigue)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#a855f7"></span> TSB (Form)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#94a3b8; opacity:.5"></span> Daily TSS</div>
+    <span class="ms-3">|</span>
+    <div class="legend-item ms-3"><span class="legend-dot" style="background:#d4edda"></span> Fresh</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#fff3cd"></span> Tired</div>
+    <div class="legend-item"><span class="legend-dot" style="background:#f8d7da"></span> Danger</div>
+    <div class="legend-item text-muted">Dashed = planned</div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card text-center" id="card-ctl">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Fitness (CTL)</div>
+        <div class="display-6 fw-bold" id="val-ctl">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center" id="card-atl">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Fatigue (ATL)</div>
+        <div class="display-6 fw-bold" id="val-atl">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center" id="card-tsb">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Form (TSB)</div>
+        <div class="display-6 fw-bold" id="val-tsb">—</div>
+        <div class="small" id="val-zone"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Power profile ── #}
+<div class="card mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-lightning me-1"></i> Power Profile</span>
+    <div class="d-flex gap-2 align-items-center">
+      <select id="profileDays" class="form-select form-select-sm" style="width:auto">
+        <option value="30" selected>Past 30 days</option>
+        <option value="60">Past 60 days</option>
+        <option value="90">Past 90 days</option>
+        <option value="180">Past 6 months</option>
+        <option value="365">Past year</option>
+      </select>
+      <span class="small text-muted" id="profile-count"></span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="profile-empty" class="text-muted d-none">
+      No activities with power data in this window.
+      <a href="{% url 'integrations_home' %}">Sync your rides</a> to see your power profile.
+    </div>
+    <canvas id="power-profile-chart" height="200"></canvas>
+  </div>
+  <div class="card-footer d-flex justify-content-between align-items-center" id="profile-footer" style="display:none!important">
+    <div>
+      <span class="small text-muted">FTP estimate:</span>
+      <strong id="profile-ftp" class="text-warning ms-1"></strong>
+      <span class="small text-muted ms-1" id="profile-ftp-method"></span>
+    </div>
+    <div class="small text-muted" id="profile-date-range"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const API_URL = '{% url "fatigue_data_api" %}';
+let chart = null;
+
+function loadChart() {
+  const daysBack = document.getElementById('rangeDaysBack').value;
+  const daysForward = document.getElementById('rangeDaysForward').value;
+
+  fetch(`${API_URL}?days_back=${daysBack}&days_forward=${daysForward}`)
+    .then(r => r.json())
+    .then(data => renderChart(data));
+}
+
+function renderChart(data) {
+  const labels = data.map(d => d.date);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayIdx = labels.indexOf(today);
+
+  // Split actual vs planned for dashed line styling
+  const ctlData = data.map(d => d.ctl);
+  const atlData = data.map(d => d.atl);
+  const tsbData = data.map(d => d.tsb);
+  const tssData = data.map(d => d.tss);
+
+  // Background colors for TSB zone bands
+  const tsbColors = data.map(d => d.color + '40');  // with alpha
+
+  // Segment styling: dashed for planned days
+  const segmentStyle = (ctx) => {
+    const idx = ctx.p1DataIndex;
+    return data[idx]?.source === 'planned' ? [6, 3] : undefined;
+  };
+
+  const ctx = document.getElementById('fatigue-chart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'TSS',
+          data: tssData,
+          type: 'bar',
+          backgroundColor: data.map(d => d.source === 'planned' ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.4)'),
+          borderColor: 'rgba(148,163,184,0.3)',
+          borderWidth: 1,
+          yAxisID: 'yTSS',
+          order: 3,
+        },
+        {
+          label: 'CTL (Fitness)',
+          data: ctlData,
+          borderColor: '#3b82f6',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          segment: { borderDash: segmentStyle },
+          order: 1,
+        },
+        {
+          label: 'ATL (Fatigue)',
+          data: atlData,
+          borderColor: '#ef4444',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          segment: { borderDash: segmentStyle },
+          order: 1,
+        },
+        {
+          label: 'TSB (Form)',
+          data: tsbData,
+          borderColor: '#a855f7',
+          backgroundColor: tsbColors,
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.3,
+          fill: true,
+          segment: { borderDash: segmentStyle },
+          order: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0]?.label || '',
+            afterBody: items => {
+              const idx = items[0]?.dataIndex;
+              if (idx != null && data[idx]) {
+                const d = data[idx];
+                return `Zone: ${d.zone} | ${d.source}`;
+              }
+              return '';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: {
+            maxTicksLimit: 15,
+            callback: function(val, idx) {
+              const label = this.getLabelForValue(val);
+              return label.slice(5); // "MM-DD"
+            },
+          },
+          grid: { display: false },
+        },
+        y: {
+          position: 'left',
+          title: { display: true, text: 'CTL / ATL / TSB' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+        },
+        yTSS: {
+          position: 'right',
+          title: { display: true, text: 'Daily TSS' },
+          grid: { display: false },
+          min: 0,
+        },
+      },
+    },
+  });
+
+  // Update today's summary cards
+  const todayData = data.find(d => d.date === today) || data[data.length - 1];
+  if (todayData) {
+    document.getElementById('val-ctl').textContent = todayData.ctl.toFixed(0);
+    document.getElementById('val-atl').textContent = todayData.atl.toFixed(0);
+    document.getElementById('val-tsb').textContent = todayData.tsb.toFixed(0);
+    const zoneLabel = {fresh: '🟢 Fresh', neutral: '⚪ Neutral', tired: '🟡 Tired', danger: '🔴 Danger'};
+    document.getElementById('val-zone').textContent = zoneLabel[todayData.zone] || todayData.zone;
+  }
+}
+
+document.getElementById('rangeDaysBack').addEventListener('change', loadChart);
+document.getElementById('rangeDaysForward').addEventListener('change', loadChart);
+loadChart();
+
+// ── Power profile chart ────────────────────────────────────────────────
+const PROFILE_API = '{% url "power_profile_api" %}';
+let profileChart = null;
+
+function formatDuration(seconds) {
+  if (seconds >= 3600) return `${(seconds/3600).toFixed(1)}h`;
+  if (seconds >= 60) return `${Math.round(seconds/60)}m`;
+  return `${seconds}s`;
+}
+
+function loadProfile() {
+  const days = document.getElementById('profileDays').value;
+  fetch(`${PROFILE_API}?days=${days}`)
+    .then(r => r.json())
+    .then(data => renderProfile(data));
+}
+
+function renderProfile(data) {
+  const emptyEl = document.getElementById('profile-empty');
+  const footerEl = document.getElementById('profile-footer');
+  const canvas = document.getElementById('power-profile-chart');
+
+  if (!data.curve || data.curve.length === 0) {
+    emptyEl.classList.remove('d-none');
+    canvas.style.display = 'none';
+    footerEl.style.display = 'none !important';
+    return;
+  }
+  emptyEl.classList.add('d-none');
+  canvas.style.display = '';
+  footerEl.style.cssText = '';
+
+  document.getElementById('profile-count').textContent =
+    `${data.activity_count} ride${data.activity_count !== 1 ? 's' : ''}`;
+
+  // Merged curve
+  const labels = data.curve.map(p => p.duration);
+  const watts = data.curve.map(p => p.watts);
+
+  // Per-activity curves as faint overlays
+  const overlays = data.activities.map((act, i) => ({
+    label: act.name,
+    data: labels.map(dur => {
+      const pt = act.curve.find(p => p.duration === dur);
+      return pt ? pt.watts : null;
+    }),
+    borderColor: `hsla(${(i * 47) % 360}, 60%, 60%, 0.25)`,
+    borderWidth: 1,
+    pointRadius: 0,
+    tension: 0.3,
+    spanGaps: true,
+  }));
+
+  const ctx = canvas.getContext('2d');
+  if (profileChart) profileChart.destroy();
+
+  profileChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        ...overlays,
+        {
+          label: 'Best Power',
+          data: watts,
+          borderColor: '#a855f7',
+          backgroundColor: 'rgba(168,85,247,0.1)',
+          borderWidth: 3,
+          pointRadius: 3,
+          pointBackgroundColor: '#a855f7',
+          fill: true,
+          tension: 0.3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => formatDuration(Number(items[0]?.label || 0)),
+            afterBody: (items) => {
+              const idx = items[0]?.dataIndex;
+              if (idx != null && data.curve[idx]) {
+                return `Best from: ${data.curve[idx].source_name} (${data.curve[idx].source_date})`;
+              }
+              return '';
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: { display: true, text: 'Duration' },
+          ticks: { callback: val => formatDuration(val), autoSkip: true, maxTicksLimit: 10 },
+          grid: { display: false },
+        },
+        y: {
+          title: { display: true, text: 'Power (W)' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+        },
+      },
+    },
+  });
+
+  // Footer: FTP estimate
+  if (data.ftp_estimate) {
+    document.getElementById('profile-ftp').textContent = `${data.ftp_estimate.ftp}W`;
+    const methodLabel = data.ftp_estimate.method === '20min_95pct'
+      ? `(95% of best 20min: ${data.ftp_estimate.raw_power.toFixed(0)}W)`
+      : `(best 60min power)`;
+    document.getElementById('profile-ftp-method').textContent = methodLabel;
+  } else {
+    document.getElementById('profile-ftp').textContent = '—';
+    document.getElementById('profile-ftp-method').textContent = 'Need a 20+ min effort';
+  }
+  document.getElementById('profile-date-range').textContent =
+    `${data.date_range[0]} → ${data.date_range[1]}`;
+}
+
+document.getElementById('profileDays').addEventListener('change', loadProfile);
+loadProfile();
+</script>
+{% endblock %}

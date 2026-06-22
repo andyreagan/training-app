@@ -40,17 +40,18 @@ def plan_detail(request, slug):
             phase = ("Build", "warning")
         else:
             phase = ("Peak", "danger")
-        day_cells = [
-            {"name": DAY_NAMES[dow], "blocks": days.get(dow, [])}
-            for dow in range(7)
-        ]
+        day_cells = [{"name": DAY_NAMES[dow], "blocks": days.get(dow, [])} for dow in range(7)]
         weekly_rows.append({"week": week_num, "phase": phase, "days": day_cells})
 
-    return render(request, "plans/detail.html", {
-        "plan": plan,
-        "weekly_rows": weekly_rows,
-        "active_user_plan": active_user_plan,
-    })
+    return render(
+        request,
+        "plans/detail.html",
+        {
+            "plan": plan,
+            "weekly_rows": weekly_rows,
+            "active_user_plan": active_user_plan,
+        },
+    )
 
 
 @login_required
@@ -72,7 +73,7 @@ def adopt_plan(request, slug):
             up.save()
         up.deactivate_others()
 
-        messages.success(request, f"You're now following \"{plan.name}\". Starting {start_date}.")
+        messages.success(request, f'You\'re now following "{plan.name}". Starting {start_date}.')
         return redirect("calendar")
     return redirect("plan_detail", slug=slug)
 
@@ -82,7 +83,7 @@ def unadopt_plan(request, slug):
     plan = get_object_or_404(TrainingPlan, slug=slug)
     if request.method == "POST":
         UserPlan.objects.filter(user=request.user, plan=plan).update(is_active=False)
-        messages.info(request, f"Removed \"{plan.name}\" from your active plan.")
+        messages.info(request, f'Removed "{plan.name}" from your active plan.')
     return redirect("plan_list")
 
 
@@ -103,16 +104,39 @@ def workout_detail(request, pk):
     for step in workout.structure:
         s = dict(step)
         s["duration_display"] = fmt_seconds(step["duration_seconds"])
-        s["watts_low"]  = round(ftp * step["power_low"]  / 100)
+        s["watts_low"] = round(ftp * step["power_low"] / 100)
         s["watts_high"] = round(ftp * step["power_high"] / 100)
         if "rest_duration_seconds" in step:
             s["rest_duration_display"] = fmt_seconds(step["rest_duration_seconds"])
-            s["rest_watts_low"]  = round(ftp * step.get("rest_power_low",  35) / 100)
+            s["rest_watts_low"] = round(ftp * step.get("rest_power_low", 35) / 100)
             s["rest_watts_high"] = round(ftp * step.get("rest_power_high", 52) / 100)
         steps.append(s)
 
-    return render(request, "plans/workout_detail.html", {
-        "workout": workout,
-        "steps": steps,
-        "ftp": ftp,
-    })
+    # Difficulty prediction for authenticated users
+    difficulty = None
+    if request.user.is_authenticated:
+        from apps.difficulty.predict import predict as predict_difficulty
+        from apps.fatigue.queries import tsb_for_date
+        from apps.plans.models import UserProgressionScores
+
+        scores_obj, _ = UserProgressionScores.objects.get_or_create(user=request.user)
+        user_score = scores_obj.score_for(workout.category)
+        tsb = tsb_for_date(request.user, datetime.date.today())
+
+        difficulty = predict_difficulty(
+            workout_score=workout.progression_score,
+            user_score=user_score,
+            tsb=tsb,
+            intended_effort=workout.intended_effort,
+        )
+
+    return render(
+        request,
+        "plans/workout_detail.html",
+        {
+            "workout": workout,
+            "steps": steps,
+            "ftp": ftp,
+            "difficulty": difficulty,
+        },
+    )

@@ -1,3 +1,36 @@
+[project]
+name = "training"
+version = "0.1.0"
+description = "Cycling training app — Sustainable Training by Jem Arnold"
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=5.1",
+    "psycopg2-binary",
+    "gunicorn",
+    "whitenoise>=6",
+    "stravalib>=2",
+    "requests",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-django",
+    "pytest-playwright",
+    "factory-boy",
+    "ty",
+    "ruff",
+    "pre-commit",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["apps", "config"]
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings"
 python_files   = ["test_*.py"]
@@ -8,6 +41,7 @@ addopts = "--tb=short -q -W ignore::UserWarning:django.core.handlers.base"
 markers = [
     "unit: pure-logic tests (no database)",
     "views: Django view tests (database, test client)",
+    "integration: integration tests (live server, mock Strava)",
     "e2e: Playwright end-to-end tests (live server + browser)",
 ]
 
@@ -33,6 +67,7 @@ select = [
 ]
 ignore = [
     "DJ001",  # nullable CharField – we always pair with blank=True
+    "DJ012",  # model method ordering – we prefer properties before save()
     "B008",   # function calls in default args (common Django pattern)
     "N806",   # variable names in functions (legacy)
     "ARG001", # unused function arguments (overrides, signals)
@@ -49,9 +84,16 @@ known-first-party = ["apps", "config"]
 # ── ty ────────────────────────────────────────────────────────────────────────
 
 [tool.ty.environment]
-python-version = "3.12"
+# Use the project virtualenv so ty can resolve Django, requests, etc.
+python = ".venv"
 
 [tool.ty.rules]
-# Start strict but silence the noisiest Django-specific false-positives
-unknown-argument    = "warn"
-possibly-unbound    = "warn"
+# Django uses metaclass magic (descriptors, managers, etc.) that ty at alpha
+# can't see through. Downgrade noisy false-positives so commits aren't blocked.
+# Real errors (invalid-parameter-default, division-by-zero, etc.) stay as errors.
+unresolved-import     = "warn"
+unresolved-attribute  = "warn"
+unknown-argument      = "warn"
+invalid-argument-type = "warn"   # Django field descriptors look wrong to ty
+no-matching-overload  = "warn"   # dict.get(), divmod() on Decimal fields, etc.
+unsupported-operator  = "warn"   # Decimal / int not visible to ty

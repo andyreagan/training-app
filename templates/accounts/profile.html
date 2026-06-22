@@ -25,6 +25,25 @@
           {% endfor %}
           <button type="submit" name="save_profile" class="btn btn-primary">Save</button>
         </form>
+
+        {# ── FTP link ── #}
+        <hr>
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <span class="fw-semibold">FTP</span>
+            {% if user.ftp %}
+              <span class="badge bg-warning text-dark ms-2">{{ user.ftp }} W</span>
+              {% if user.watts_per_kg %}
+                <span class="text-muted small ms-1">({{ user.watts_per_kg }} W/kg)</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted ms-2">Not set</span>
+            {% endif %}
+          </div>
+          <a href="{% url 'ftp_history' %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-clock-history me-1"></i> FTP History
+          </a>
+        </div>
       </div>
     </div>
   </div>

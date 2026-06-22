@@ -13,7 +13,7 @@ def generate_erg(workout, ftp: int = 250) -> bytes:
         "[COURSE HEADER]",
         f"DESCRIPTION = {workout.description[:120]}",
         f"FILE NAME = {workout.slug}.erg",
-        f"MINUTES WATTS",
+        "MINUTES WATTS",
         "[END COURSE HEADER]",
         "",
         "[COURSE DATA]",

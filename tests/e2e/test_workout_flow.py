@@ -2,12 +2,15 @@
 E2E: Workout detail page and file downloads.
 """
 
+from pathlib import Path
+
 import pytest
 
 
 @pytest.mark.django_db(transaction=True)
 def test_workout_detail_accessible_anonymously(page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
     page.goto(live_url(f"/plans/workout/{wb.pk}/"))
     page.wait_for_load_state("networkidle")
@@ -17,6 +20,7 @@ def test_workout_detail_accessible_anonymously(page, live_url, seed):
 @pytest.mark.django_db(transaction=True)
 def test_workout_detail_shows_interval_structure(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock, WorkoutCategory
+
     # Pick a VO2max workout — has explicit interval rows
     wb = WorkoutBlock.objects.filter(category=WorkoutCategory.VO2MAX).first()
 
@@ -33,6 +37,7 @@ def test_workout_detail_shows_interval_structure(logged_in_page, live_url, seed)
 @pytest.mark.django_db(transaction=True)
 def test_workout_detail_shows_watts(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
     page = logged_in_page
     page.goto(live_url(f"/plans/workout/{wb.pk}/"))
@@ -44,6 +49,7 @@ def test_workout_detail_shows_watts(logged_in_page, live_url, seed):
 @pytest.mark.django_db(transaction=True)
 def test_workout_detail_shows_download_buttons_when_logged_in(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
     page = logged_in_page
     page.goto(live_url(f"/plans/workout/{wb.pk}/"))
@@ -65,7 +71,7 @@ def _download_from_detail(page, live_url, wb, label, expected_ext, expected_magi
         page.locator("a", has_text=label).first.click()
     download = dl_info.value
     assert download.suggested_filename.endswith(expected_ext)
-    with open(download.path(), "rb") as f:
+    with Path(download.path()).open("rb") as f:
         data = f.read()
     assert expected_magic in data[:50]
     return data
@@ -74,34 +80,32 @@ def _download_from_detail(page, live_url, wb, label, expected_ext, expected_magi
 @pytest.mark.django_db(transaction=True)
 def test_fit_file_downloads(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
-    data = _download_from_detail(
-        logged_in_page, live_url, wb, "Garmin FIT", ".fit", b".FIT"
-    )
+    data = _download_from_detail(logged_in_page, live_url, wb, "Garmin FIT", ".fit", b".FIT")
     assert data[8:12] == b".FIT"
 
 
 @pytest.mark.django_db(transaction=True)
 def test_zwo_file_downloads(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
-    _download_from_detail(
-        logged_in_page, live_url, wb, "Zwift ZWO", ".zwo", b"<?xml"
-    )
+    _download_from_detail(logged_in_page, live_url, wb, "Zwift ZWO", ".zwo", b"<?xml")
 
 
 @pytest.mark.django_db(transaction=True)
 def test_erg_file_downloads(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
-    _download_from_detail(
-        logged_in_page, live_url, wb, "ERG file", ".erg", b"[COURSE HEADER]"
-    )
+    _download_from_detail(logged_in_page, live_url, wb, "ERG file", ".erg", b"[COURSE HEADER]")
 
 
 @pytest.mark.django_db(transaction=True)
 def test_add_workout_to_calendar_from_detail_page(logged_in_page, live_url, seed):
     from apps.plans.models import WorkoutBlock
+
     wb = WorkoutBlock.objects.first()
     page = logged_in_page
 
@@ -121,6 +125,7 @@ def test_add_workout_to_calendar_from_detail_page(logged_in_page, live_url, seed
 @pytest.mark.django_db(transaction=True)
 def test_calendar_shows_added_workout(logged_in_page, live_url, seed, e2e_user):
     import datetime
+
     from apps.plans.models import WorkoutBlock
     from apps.scheduler.models import ScheduledWorkout
 
