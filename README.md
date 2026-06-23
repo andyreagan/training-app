@@ -6,7 +6,7 @@ power analysis, FTP history, HR-based TSS, difficulty prediction, and a training
 ## Quick start (local dev)
 
 ```bash
-uv sync --dev
+uv sync --extra dev
 python manage.py migrate
 python manage.py seed_plans          # populate workout library
 python manage.py createsuperuser
